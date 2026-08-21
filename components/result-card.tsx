@@ -25,8 +25,22 @@ const CONFIDENCE_LABEL: Record<string, string> = {
   hypothetical: "Possible",
 };
 
+function formatCents(cents: number | null): string | null {
+  if (cents === null) return null;
+  return `$${(cents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
+
 export function ResultCard({ result }: { result: AnalysisResult }) {
   const [showEvidence, setShowEvidence] = useState(true);
+
+  const exposureRange = (() => {
+    if (result.exposureLowCentsPerYear !== null && result.exposureHighCentsPerYear !== null) {
+      const low = formatCents(result.exposureLowCentsPerYear);
+      const high = formatCents(result.exposureHighCentsPerYear);
+      if (low && high && low !== high) return `${low} – ${high}`;
+    }
+    return result.exposureLabel;
+  })();
 
   return (
     <div
@@ -63,8 +77,13 @@ export function ResultCard({ result }: { result: AnalysisResult }) {
               Potential exposure
             </p>
             <p className="money mt-1 text-2xl font-bold text-(--wt-ink-900)" data-testid="exposure">
-              {result.exposureLabel}
+              {exposureRange}
             </p>
+            {result.exposureAssumption && (
+              <p className="mt-1 text-xs text-(--wt-ink-500)" data-testid="exposure-assumption">
+                {result.exposureAssumption}
+              </p>
+            )}
           </div>
           <div className="rounded-lg bg-(--wt-warn-100) p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-(--wt-ink-500)">
@@ -102,9 +121,11 @@ export function ResultCard({ result }: { result: AnalysisResult }) {
                 <li key={i} className="text-sm">
                   <span className="font-semibold text-(--wt-ink-700)">{f.label}:</span>{" "}
                   <span className="text-(--wt-ink-900)">{f.value}</span>
-                  <span className="ml-2 font-mono text-xs text-(--wt-ink-500)" title={f.source}>
-                    “{f.source.slice(0, 60)}…”
-                  </span>
+                  {f.source && (
+                    <span className="ml-2 font-mono text-xs text-(--wt-ink-500)" title={f.source}>
+                      “{f.source.slice(0, 60)}…”
+                    </span>
+                  )}
                 </li>
               ))
             )}

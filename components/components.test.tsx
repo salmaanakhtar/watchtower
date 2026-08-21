@@ -8,7 +8,11 @@ import { VariantProvider } from "@/components/variant-provider";
 import { ResultCard } from "@/components/result-card";
 import type { AnalysisResult } from "@/lib/analysis";
 
-function InputZoneHarness({ onResult }: { onResult: (r: AnalysisResult) => void }) {
+function InputZoneHarness({
+  onResult,
+}: {
+  onResult: (r: AnalysisResult | null) => void;
+}) {
   const [phase, setPhase] = useState<Phase>("idle");
   return (
     <VariantProvider variantCookie="A">
@@ -22,14 +26,17 @@ const result: AnalysisResult = {
   counterparty: "Adobe",
   title: "Recurring subscription detected",
   whyItMatters: "Subscriptions that renew automatically are easy to forget.",
-  exposureCentsPerYear: 239880,
+  exposureCentsPerYear: 24000,
+  exposureLowCentsPerYear: 24000,
+  exposureHighCentsPerYear: 24000,
+  exposureAssumption: "$19.99/month × 12 months = $240/year if this renews",
   exposureLabel: "~$240/year if this renews",
   deadline: "October 14",
   recommendation: "Decide before October 14: cancel to stop the next charge.",
   confidence: "certain",
   facts: [
-    { label: "Amount", value: "$19.99/month", source: "renews at $19.99" },
-    { label: "Deadline", value: "October 14", source: "renews on October 14" },
+    { label: "Amount", value: "$19.99/month", source: "renews at $19.99", offset: [31, 44] },
+    { label: "Deadline", value: "October 14", source: "October 14", offset: [21, 31] },
   ],
 };
 
@@ -81,6 +88,9 @@ describe("InputZone", () => {
           title: "Recurring subscription detected",
           whyItMatters: "Subscriptions that renew automatically are easy to forget.",
           exposureCentsPerYear: 239880,
+          exposureLowCentsPerYear: 239880,
+          exposureHighCentsPerYear: 239880,
+          exposureAssumption: "$19.99/month × 12 months = $240/year if this renews",
           exposureLabel: "~$240/year if this renews",
           deadline: "October 14",
           recommendation: "Decide before October 14.",
@@ -92,6 +102,47 @@ describe("InputZone", () => {
     await waitFor(() => expect(onResult).toHaveBeenCalled());
     vi.unstubAllGlobals();
   });
+
+  it("reports a queued file as null result with a message", async () => {
+    const user = userEvent.setup();
+    const onResult = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: "q1",
+        result: null,
+        queued: true,
+        message: "PDF extraction is coming soon — queued for manual review.",
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<InputZoneHarness onResult={onResult} />);
+    await user.click(screen.getByTestId("tab-file"));
+
+    const file = new File(["fake pdf"], "bill.pdf", { type: "application/pdf" });
+    await user.upload(screen.getByTestId("file-input"), file);
+
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(null));
+    expect(await screen.findByTestId("file-message")).toHaveTextContent("queued for manual review");
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects oversized files client-side", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<InputZoneHarness onResult={() => {}} />);
+    await user.click(screen.getByTestId("tab-file"));
+
+    const big = new File([new ArrayBuffer(10 * 1024 * 1024 + 1)], "big.txt", {
+      type: "text/plain",
+    });
+    await user.upload(screen.getByTestId("file-input"), big);
+
+    expect(await screen.findByTestId("error-message")).toHaveTextContent("max 10MB");
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
 });
 
 describe("ResultCard", () => {
@@ -99,6 +150,7 @@ describe("ResultCard", () => {
     render(<ResultCard result={result} />);
     expect(screen.getByTestId("kind-badge")).toHaveTextContent("Subscription");
     expect(screen.getByTestId("exposure")).toHaveTextContent("$240/year");
+    expect(screen.getByTestId("exposure-assumption")).toHaveTextContent("$19.99/month × 12 months");
     expect(screen.getByTestId("deadline")).toHaveTextContent("October 14");
     expect(screen.getByTestId("recommendation")).toHaveTextContent("Decide before");
     expect(screen.getByTestId("evidence-list")).toHaveTextContent("$19.99/month");

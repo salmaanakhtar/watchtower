@@ -4,8 +4,17 @@ import { useRef, useState } from "react";
 import { useVariant } from "./variant-provider";
 import { SAMPLE_TEXT } from "@/lib/variants";
 import type { AnalysisResult } from "@/lib/analysis";
+import { MAX_UPLOAD_BYTES } from "@/lib/upload";
 
 export type Phase = "idle" | "processing" | "done" | "error";
+
+interface AnalyzeResponse {
+  id?: string;
+  result?: AnalysisResult | null;
+  queued?: boolean;
+  message?: string;
+  error?: string;
+}
 
 export function InputZone({
   phase,
@@ -14,27 +23,35 @@ export function InputZone({
 }: {
   phase: Phase;
   onPhase: (p: Phase) => void;
-  onResult: (r: AnalysisResult) => void;
+  onResult: (r: AnalysisResult | null) => void;
 }) {
   const { variant } = useVariant();
   const [tab, setTab] = useState<"paste" | "file">("paste");
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
+  const [fileMessage, setFileMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  async function submit(content: string, kind: "paste" | "file", contentType?: string) {
+  async function submit(payload: Record<string, unknown>) {
     setError(null);
     onPhase("processing");
     try {
       const res = await fetch("/api/analyses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, variant, kind, contentType }),
+        body: JSON.stringify(payload),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Analysis failed");
-      onResult(json.result as AnalysisResult);
+      const json = (await res.json()) as AnalyzeResponse;
+      if (!res.ok) throw new Error(json?.error ?? "Analysis failed");
+      if (json.queued || json.result === null || json.result === undefined) {
+        setFileName(fileName ?? null);
+        setFileMessage(json.message ?? "Queued for manual review.");
+        onResult(null);
+        onPhase("done");
+        return;
+      }
+      onResult(json.result);
       onPhase("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong. Try again.");
@@ -48,23 +65,49 @@ export function InputZone({
       onPhase("error");
       return;
     }
-    void submit(text, "paste");
+    void submit({ content: text, variant, kind: "paste" });
   }
 
   function handleFile(file: File) {
-    setFileName(file.name);
-    // Phase 0: read small text files; PDFs/images are queued for manual review.
-    if (file.type.startsWith("text/") || file.type === "application/json") {
-      const reader = new FileReader();
-      reader.onload = () => void submit(String(reader.result), "file", file.type);
-      reader.readAsText(file);
-    } else {
-      void submit(
-        `[File uploaded: ${file.name}] Manual review in progress.`,
-        "file",
-        file.type,
-      );
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setFileName(file.name);
+      setError("That file is too large — max 10MB.");
+      onPhase("error");
+      return;
     }
+    setFileName(file.name);
+    setFileMessage(null);
+    const reader = new FileReader();
+    reader.onerror = () => {
+      setError("Couldn't read that file. Try a PDF, PNG, JPG, or text file.");
+      onPhase("error");
+    };
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        setError("Couldn't read that file. Try again.");
+        onPhase("error");
+        return;
+      }
+      void submit({
+        content: file.name,
+        variant,
+        kind: "file",
+        contentType: file.type,
+        filename: file.name,
+        // readAsDataURL yields "data:<mime>;base64,<payload>" — strip the prefix.
+        base64: result.replace(/^data:[^,]*,/, ""),
+      });
+    };
+    // readAsDataURL yields "data:<mime>;base64,<payload>" — strip the prefix.
+    reader.readAsDataURL(file);
+  }
+
+  function clearFile() {
+    setFileName(null);
+    setFileMessage(null);
+    setError(null);
+    if (fileRef.current) fileRef.current.value = "";
   }
 
   return (
@@ -165,6 +208,27 @@ export function InputZone({
               }}
               data-testid="file-input"
             />
+            {fileName && !fileMessage && !error && (
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-xs text-(--wt-ink-500)">{fileName} selected</span>
+                <button
+                  type="button"
+                  onClick={clearFile}
+                  className="text-xs text-(--wt-ink-500) underline-offset-2 hover:text-(--wt-alert-600) hover:underline"
+                  data-testid="clear-file"
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+            {fileMessage && (
+              <p
+                className="mt-3 rounded-lg border border-(--wt-warn-100) bg-(--wt-warn-100)/40 px-3 py-2 text-sm text-(--wt-ink-700)"
+                data-testid="file-message"
+              >
+                {fileMessage}
+              </p>
+            )}
             {error && (
               <p className="mt-3 text-sm text-(--wt-alert-600)" data-testid="error-message">
                 {error}

@@ -108,4 +108,20 @@ test.describe("Upload flow", () => {
     await expect(page.getByTestId("result-card")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("kind-badge")).toContainText("Subscription");
   });
+
+  test("queues a PDF upload with an honest message (no fake result)", async ({ page, context }) => {
+    await context.addCookies([
+      { name: "wt_variant", value: "A", url: "http://127.0.0.1:3100" },
+    ]);
+    await page.goto("/");
+    await page.getByTestId("tab-file").click();
+    await page.getByTestId("file-input").setInputFiles({
+      name: "bill.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< >>\n%%EOF"),
+    });
+    await expect(page.getByTestId("file-message")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("file-message")).toContainText("queued for manual review");
+    await expect(page.getByTestId("result-card")).not.toBeVisible();
+  });
 });

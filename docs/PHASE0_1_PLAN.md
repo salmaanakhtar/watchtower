@@ -244,6 +244,8 @@ Deliverables (Linear WT-2..WT-8):
 - Security & privacy hardening baseline (WT-8) — encryption at rest, tenant isolation, retention, consent.
 - Precision audit process running.
 
+**Status:** WT-2 (anonymous analyzer MVP) shipped 2026-08-22 on the deterministic path. AnalysisResult carries provenance offsets + exposure low/high cents + assumption. Uploads: text-ish files analyzed immediately (client-side base64 → server decode with magic-byte MIME check); PDF/images queued for manual review (honest message, no fake results). No LLM yet, no raw file bytes stored. See `docs/DECISIONS.md` (2026-08-22 entry) and commit `WT-2`.
+
 Exit criteria:
 - Time-to-result < 60 s median (p90 < 120 s).
 - Precision ≥ 90% on actionable findings (human audit, n ≥ 50 per category).

@@ -10,6 +10,7 @@ const TEST_DB = path.join(__dirname, ".test.db");
 process.env.DATABASE_URL = `file:${TEST_DB}`;
 
 import { POST as analysesPOST } from "@/app/api/analyses/route";
+import { GET as analysisGET } from "@/app/api/analyses/[id]/route";
 import { POST as waitlistPOST } from "@/app/api/waitlist/route";
 import { GET as adminGET } from "@/app/api/admin/route";
 
@@ -67,6 +68,116 @@ describe("POST /api/analyses", () => {
       }),
     );
     expect(res.status).toBe(400);
+  });
+
+  it("analyzes a decoded text file upload and stores the result", async () => {
+    const b64 = Buffer.from(
+      "Your home insurance policy renews on November 1 at $850 per year. Cancel before then.",
+    ).toString("base64");
+    const res = await analysesPOST(
+      new Request("http://localhost/api/analyses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "policy.txt",
+          variant: "A",
+          kind: "file",
+          contentType: "text/plain",
+          filename: "policy.txt",
+          base64: b64,
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.queued).toBe(false);
+    expect(json.result.kind).toBe("subscription");
+    expect(json.result.exposureCentsPerYear).toBe(85000);
+  });
+
+  it("queues PDF uploads for manual review (no fake result)", async () => {
+    const b64 = Buffer.from("%PDF-1.4\n1 0 obj\n<<fake>>").toString("base64");
+    const res = await analysesPOST(
+      new Request("http://localhost/api/analyses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "bill.pdf",
+          variant: "A",
+          kind: "file",
+          contentType: "application/pdf",
+          filename: "bill.pdf",
+          base64: b64,
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.queued).toBe(true);
+    expect(json.result).toBeNull();
+  });
+
+  it("rejects unsupported file types", async () => {
+    const b64 = Buffer.from("PK\x03\x04fakezip").toString("base64");
+    const res = await analysesPOST(
+      new Request("http://localhost/api/analyses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "x.zip",
+          variant: "A",
+          kind: "file",
+          contentType: "application/zip",
+          filename: "x.zip",
+          base64: b64,
+        }),
+      }),
+    );
+    expect(res.status).toBe(415);
+  });
+
+  it("rejects kind=file without base64", async () => {
+    const res = await analysesPOST(
+      new Request("http://localhost/api/analyses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: "x", variant: "A", kind: "file" }),
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /api/analyses/[id]", () => {
+  it("returns the stored result idempotently", async () => {
+    const post = await analysesPOST(
+      new Request("http://localhost/api/analyses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "Your Adobe plan renews on October 14 at $19.99/month. Cancel before.",
+          variant: "A",
+          kind: "paste",
+        }),
+      }),
+    );
+    const { id } = await post.json();
+
+    const res = await analysisGET(new Request("http://localhost/api/analyses/x"), {
+      params: Promise.resolve({ id }),
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.id).toBe(id);
+    expect(json.result.kind).toBe("subscription");
+    expect(json.queued).toBe(false);
+  });
+
+  it("returns 404 for unknown ids", async () => {
+    const res = await analysisGET(new Request("http://localhost/api/analyses/x"), {
+      params: Promise.resolve({ id: "does-not-exist" }),
+    });
+    expect(res.status).toBe(404);
   });
 });
 

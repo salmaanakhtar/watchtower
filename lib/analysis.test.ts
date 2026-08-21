@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeText, moneyProtectedLabel } from "@/lib/analysis";
+import { analyzeText, extractFacts, moneyProtectedLabel } from "@/lib/analysis";
 
 describe("analyzeText", () => {
   it("returns a none-result for empty input", () => {
@@ -54,6 +54,65 @@ describe("analyzeText", () => {
     const r = analyzeText("Your subscription will renew automatically.");
     expect(r.kind).toBe("subscription");
     expect(r.confidence).toBe("conditional");
+  });
+
+  it("exposes a conservative range with an explicit assumption (monthly rate)", () => {
+    const r = analyzeText("Your Adobe plan renews at $9.99/month on November 1.");
+    expect(r.exposureLowCentsPerYear).toBe(Math.round(9.99 * 12 * 100));
+    expect(r.exposureHighCentsPerYear).toBe(Math.round(9.99 * 12 * 100));
+    expect(r.exposureAssumption).toContain("$9.99/month × 12 months");
+    expect(r.exposureAssumption).toContain("$120/year");
+  });
+
+  it("detects a forgotten-trial conversion with deadline and rate", () => {
+    const r = analyzeText(
+      "Your 14-day free trial of GymBox ends on March 15. After that you will be billed $49.99/month.",
+    );
+    expect(r.kind).toBe("trial");
+    expect(r.deadline).toContain("March 15");
+    expect(r.exposureCentsPerYear).toBe(Math.round(49.99 * 12 * 100));
+    expect(r.confidence).toBe("conditional");
+  });
+
+  it("classifies a refund notice as cancellation and exposes no recurring cost", () => {
+    const r = analyzeText(
+      "We have processed your refund of $120.00 for the cancelled Annual Plan. No further charges.",
+    );
+    expect(r.kind).toBe("cancellation");
+    expect(r.exposureCentsPerYear).toBeNull();
+  });
+
+  it("keeps certainty when both renewal and amount are present", () => {
+    const r = analyzeText("Your plan renews on December 1 at $12.99/month.");
+    expect(r.confidence).toBe("certain");
+  });
+});
+
+describe("extractFacts", () => {
+  it("records source quotes with character offsets", () => {
+    const facts = extractFacts(
+      "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.",
+    );
+    const amount = facts.find((f) => f.label === "Amount");
+    expect(amount).toBeTruthy();
+    expect(amount!.source).toContain("$19.99/month");
+    expect(amount!.offset).toBeTruthy();
+    const [start, end] = amount!.offset!;
+    const slice = "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.".slice(
+      start,
+      end,
+    );
+    expect(slice).toBe("$19.99/month");
+  });
+
+  it("includes provider, deadline, and renewal clause facts", () => {
+    const facts = extractFacts(
+      "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.",
+    );
+    const labels = facts.map((f) => f.label);
+    expect(labels).toContain("Provider");
+    expect(labels).toContain("Deadline");
+    expect(labels).toContain("Renewal clause");
   });
 });
 

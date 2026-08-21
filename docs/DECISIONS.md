@@ -93,7 +93,14 @@
 
 ---
 
-## 2026-08-21 — Deploy on Hermes-managed VPS (not Vercel)
+## 2026-08-22 — WT-2 scope: deterministic analyzer, no LLM, no raw file bytes
+**Decision:** WT-2 ships as a deterministic-only pipeline. The existing regex analysis engine is extended with provenance offsets, an exposure range (low/high, cents, with an explicit assumption statement) and the full risk-kind taxonomy. Uploads are base64-encoded client-side, validated server-side with magic-byte MIME detection; text-ish files are decoded and analyzed immediately, PDFs/images are *queued* with an honest "manual review" message instead of a fake result. No LLM, no object storage of raw bytes, no file contents persisted (only extracted text + hash for dedupe/retention).
+
+**Why:** Precision ≥ 90% is the Phase 1 gate; the deterministic engine already meets the MVP bar for pasted text and text files, and every claim stays traceable to a quote. Faking analysis of PDFs/images would destroy the trust the product is built on; honest queuing (WT-9 manual loop) is the safer bridge. Storing no raw bytes keeps the PII surface minimal before WT-8 hardening.
+
+**Revisit when:** WT-3 (ingestion/extraction) lands — swap the queued path for real PDF/OCR extraction, keep the same response contract.
+
+---
 **Decision:** Watchtower runs on the Hermes-managed VPS at `watchtower.salmaan.dev` (tailnet-private) instead of Vercel. Deployments are automated via Hermes (polls GitHub `main` every ~5 min, builds, health-checks, rolls back). The user owns deployments; agents only monitor, diagnose, and set env values via `hermes-deploy.py secret ...` (see `docs/DEPLOYMENT.md`).
 
 **Why:** Full-stack control (Node worker, Prisma migrations, persistent SQLite volume), the VPS infra already exists for other projects, and the tailnet-private hostname keeps Phase 0 traffic contained.

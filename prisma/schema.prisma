@@ -1,4 +1,4 @@
-// Watchtower Phase 0 schema
+// Watchtower Phase 0/1 schema
 // Source of truth: docs/PHASE0_1_PLAN.md §5.3 (obligation/event schema)
 
 generator client {
@@ -13,12 +13,18 @@ datasource db {
 model Submission {
   id          String   @id @default(cuid())
   variant     String   @default("A") // A/B/C/D positioning variant
-  kind        String   @default("paste") // paste | file
+  kind        String   @default("paste") // paste | file | queued
   contentType String? // e.g. text/plain, application/pdf, image/png
   content     String // the pasted text or extracted text preview
-  status      String   @default("received") // received | analyzing | done | error
+  filename    String? // original upload filename (file kind only)
+  sizeBytes   Int? // upload size, for quotas/observability (file kind only)
+  contentHash String? // sha256 of pasted text / decoded upload — dedupe + retention
+  status      String   @default("received") // received | analyzing | done | error | queued
   analysis    String? // semi-manual analysis note (Phase 0)
+  result      String? // JSON-encoded AnalysisResult (Phase 1)
   createdAt   DateTime @default(now())
+
+  @@index([contentHash, createdAt]) // dedupe lookups + retention sweeps
 }
 
 model Waitlist {
