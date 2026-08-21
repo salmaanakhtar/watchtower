@@ -1,0 +1,29 @@
+// Watchtower Phase 0 schema
+// Source of truth: docs/PHASE0_1_PLAN.md §5.3 (obligation/event schema)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Submission {
+  id          String   @id @default(cuid())
+  variant     String   @default("A") // A/B/C/D positioning variant
+  kind        String   @default("paste") // paste | file
+  contentType String? // e.g. text/plain, application/pdf, image/png
+  content     String // the pasted text or extracted text preview
+  status      String   @default("received") // received | analyzing | done | error
+  analysis    String? // semi-manual analysis note (Phase 0)
+  createdAt   DateTime @default(now())
+}
+
+model Waitlist {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  source    String   @default("landing") // landing | admin
+  createdAt DateTime @default(now())
+}

@@ -1,3 +1,13 @@
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
+
 # AGENTS.md
 
 ## Project
@@ -24,17 +34,6 @@ Before proposing substantial product, engineering, growth, or pricing changes, r
 - `docs/DECISIONS.md`
 - `docs/OPEN_QUESTIONS.md`
 
-## Operating principles
-1. Build a painkiller, not a vitamin.
-2. Time-to-first-value must be shorter than doing the task manually.
-3. Prefer progressive onboarding: value first, permissions second.
-4. Web-first for MVP; mobile comes after recurring monitoring/notifications justify installation.
-5. Avoid overbuilding the “Personal Agent OS” before validating the money-saving wedge.
-6. Agent workflow should evolve toward: Detect -> Understand -> Decide -> Act -> Verify -> Escalate.
-7. Trust, auditability, reversibility, and explicit user approval are required for consequential actions.
-8. Do not treat chat as the product. The durable product is persistent monitoring, structured state, permissions, workflow execution, and verified outcomes.
-9. Consumer, household, SMB, and enterprise should share the same underlying product architecture; enterprise differentiation should come from plans, governance, permissions, integrations, and admin features rather than bespoke code forks.
-
 ## Decision hygiene
 When a meaningful strategic decision is accepted:
 - Update the relevant document.
@@ -47,7 +46,11 @@ When a meaningful strategic decision is accepted:
 - Instrument every agent decision with source input, extracted facts, confidence, recommendation/action, user correction, and outcome.
 - Prefer reversible actions and approval gates for medium/high-risk actions.
 
+## Testing (required before every push to main)
+- **Definition of done: `npm test` (Vitest: unit + components + API routes) AND `npm run test:e2e` (Playwright) must both pass.**
+- Full workflow documented in `docs/TESTING.md`.
+- New feature = new tests: unit-test deterministic logic, integration-test API contracts, add an e2e for user-visible flows.
+- E2E runs against a production build (`next start`), not dev mode (Next 16 dev on Windows intermittently 403s JS chunks).
+
 ## Growth hygiene
 - Every product feature should be evaluated for its acquisition, activation, retention, referral, and monetization contribution.
-- Build free entry tools around specific pains where possible.
-- Optimize the path: anonymous value -> account -> watchlist -> permission -> monitoring -> action.
