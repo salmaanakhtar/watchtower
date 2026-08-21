@@ -22,6 +22,7 @@ Watchtower is an agentic SaaS platform that protects users from quietly losing m
   - Templates: Feature, Bug, Phase 0 — Experiment, Phase 1 — Analyzer, Decision.
   - Linear MCP server is configured globally in `~/.config/opencode/opencode.jsonc` — **remote** server at `https://mcp.linear.app/mcp` (Streamable HTTP) authenticated with `Authorization: Bearer <LINEAR_API_KEY>`. It is NOT an npm package (there is no `@linear/mcp-server`). See https://linear.app/docs/mcp.
   - When working on a task, reference the Linear issue identifier (e.g. `WT-4`) in commit messages where applicable.
+  - **Session naming (t3/opencode sessions):** when a session is working on a Linear issue, rename the session so the issue identifier comes first — e.g. `WT-2 — Anonymous analyzer MVP`. Do this as soon as the task is known (start of the session), and update the name if the task changes or the issue moves to a different state. This keeps session history searchable and lets the next thread resume by issue code.
 
 ## Source of truth
 Before proposing substantial product, engineering, growth, or pricing changes, read:
