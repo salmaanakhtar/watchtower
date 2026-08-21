@@ -37,6 +37,12 @@ python3 /opt/hermes/agent/data/skills/deployments/salmaan-deploy/scripts/hermes-
 
 The deployer recreates the container so the new env takes effect. Current keys: `DATABASE_URL`, `ADMIN_SECRET`.
 
+### Deployment observations (2026-08-22, WT-2)
+
+- Full deploy (new commit → build → swap → healthcheck) took **~17 min** wall time. The `hermes-deployer.service` restarted once mid-deploy (clean stop/start, `NRestarts=0`); the retry reused the BuildKit cache and finished. If a deploy seems stuck: check `systemctl status hermes-deployer.service` for a running `docker build` child — a fresh `cache.db` mtime in `/var/lib/docker/buildkit/` means the build is progressing, not hung.
+- The deployer is a single-threaded Unix-socket server: concurrent deploy requests queue. `hermes-autoupdate.service` waits on the socket (can look "stuck" while a build runs — check the deployer's child processes before assuming failure).
+- Prisma migrations auto-apply at container start; logs will show "N migration(s) ... applied" then `next start`.
+
 ## Monitoring after every push to main
 
 **Required protocol — after each push, wait a few minutes (5-min poll + build), then verify:**
