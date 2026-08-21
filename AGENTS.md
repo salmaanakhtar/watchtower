@@ -34,11 +34,25 @@ Before proposing substantial product, engineering, growth, or pricing changes, r
 - `docs/DECISIONS.md`
 - `docs/OPEN_QUESTIONS.md`
 
+Technical / operational source of truth:
+- `docs/PHASE0_1_PLAN.md` — Phase 0/1 execution plan, architecture, metrics, risks
+- `docs/DESIGN_LANGUAGE.md` — design tokens, components, voice
+- `docs/TESTING.md` — test workflow (Vitest + Playwright)
+- `docs/DEPLOYMENT.md` — VPS/Hermes deployment, monitoring, env
+
 ## Decision hygiene
 When a meaningful strategic decision is accepted:
 - Update the relevant document.
 - Append a dated entry to `docs/DECISIONS.md` with decision, rationale, and revisit trigger.
 - Move the corresponding Linear issue to `In Review` or `Done` and link the doc/commit.
+
+## Documentation & Linear hygiene (non-negotiables)
+- **Update docs with durable/important information often.** Anything that will matter next week, next thread, or to another agent belongs in `docs/` or AGENTS.md — not only in chat. Decisions, architecture, protocols, environment facts, gotchas, and status changes get written down as they happen. If it's important enough to say, it's important enough to persist.
+- **Keeping Linear in check and up to date is a non-negotiable.** Linear is the source of truth for what's planned, in progress, and done. Rules:
+  - Issues move through Backlog → Todo → In Progress → In Review → Done as work actually progresses (no stale states).
+  - When an issue is completed or superseded, its description/comment carries the final status so the next thread can resume without chat history.
+  - Every commit that resolves work references its issue ID (e.g. `(WT-2)`).
+  - At the end of any work session, reconcile: did the work match the issue? Update the issue before the thread closes.
 
 ## Development hygiene
 - Keep MVP scope narrow.

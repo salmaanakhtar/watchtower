@@ -103,7 +103,7 @@ Why this beats DIY: doing this manually means finding the email, opening the ter
 
 | Layer | Choice | Rationale |
 |---|---|---|
-| Frontend | Next.js (React) + Tailwind, deployed on Vercel | Fast iterating, SSR for landing/SEO, one codebase for landing+app |
+| Frontend | Next.js (React) + Tailwind, deployed on Hermes-managed VPS (`watchtower.salmaan.dev`, tailnet-private) | Fast iterating, SSR for landing/SEO, one codebase for landing+app; auto-deploy from GitHub main (see `docs/DEPLOYMENT.md`) |
 | Backend/API | TypeScript API (Next.js API routes or separate Fastify service) | Team velocity; one language across stack |
 | Auth | Auth.js (email magic link first; Google OAuth later). No passwords in MVP | Lowest friction, aligns with "value first" |
 | Database | Postgres (Supabase or Neon) + Prisma ORM | Relational obligation graph fits perfectly; cheap to start |

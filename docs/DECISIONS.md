@@ -90,3 +90,12 @@
 **Why:** The product's trust promise ("guardian of your money") must be reflected in every surface; alarmist or hype-heavy design would contradict the brand.
 
 **Revisit when:** Marketing scale requires a richer visual identity (illustrated guardian character, social cards).
+
+---
+
+## 2026-08-21 — Deploy on Hermes-managed VPS (not Vercel)
+**Decision:** Watchtower runs on the Hermes-managed VPS at `watchtower.salmaan.dev` (tailnet-private) instead of Vercel. Deployments are automated via Hermes (polls GitHub `main` every ~5 min, builds, health-checks, rolls back). The user owns deployments; agents only monitor, diagnose, and set env values via `hermes-deploy.py secret ...` (see `docs/DEPLOYMENT.md`).
+
+**Why:** Full-stack control (Node worker, Prisma migrations, persistent SQLite volume), the VPS infra already exists for other projects, and the tailnet-private hostname keeps Phase 0 traffic contained.
+
+**Revisit when:** Public internet launch requires DNS/public visibility, horizontal scaling, or managed Postgres (then revisit the SQLite choice).
