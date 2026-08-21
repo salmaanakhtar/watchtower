@@ -52,5 +52,14 @@ When a meaningful strategic decision is accepted:
 - New feature = new tests: unit-test deterministic logic, integration-test API contracts, add an e2e for user-visible flows.
 - E2E runs against a production build (`next start`), not dev mode (Next 16 dev on Windows intermittently 403s JS chunks).
 
+## Deployment (VPS — Hermes managed)
+- **Production host**: `watchtower.salmaan.dev` (VPS `root@169.58.162.229`, tailnet-private). Deployments are automated by the Hermes infra on the VPS: it polls GitHub `main` every ~5 min, builds the image, deploys, health-checks (HTTP 200), and rolls back failed updates. **I do not deploy; the user deploys.**
+- **Monitoring after every push to main**: wait a few minutes (poll interval + build time), then verify via SSH:
+  1. `hermes-deploy.py status --subdomain watchtower` → `health_status: 200` and `commit` = the new commit SHA.
+  2. Container image tag matches the new SHA (e.g. `hermes-app/watchtower:<sha>-<timestamp>`).
+  3. If unhealthy or stale: diagnose via `hermes-deploy.py diagnose --subdomain watchtower` + `docker logs hermes-app-watchtower`.
+- **Allowed on the VPS (my scope)**: monitoring, error checking/diagnosis, and populating env values — **only through Hermes' own commands** (e.g. `hermes-deploy.py secret set|list|unset --subdomain watchtower --key X`). No hand-rolled deployments, no direct compose edits, no manual container deploys.
+- Full details in `docs/DEPLOYMENT.md`.
+
 ## Growth hygiene
 - Every product feature should be evaluated for its acquisition, activation, retention, referral, and monetization contribution.
