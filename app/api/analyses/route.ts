@@ -62,7 +62,8 @@ export async function POST(req: Request) {
     }
     if (extractionPending(decoded.contentType)) {
       // Acknowledge, don't fake a result: the submission goes to the manual
-      // review queue (WT-9) and the admin sees the filename.
+      // review queue (WT-9) and the admin sees the original file.
+      const dataUrl = `data:${decoded.contentType};base64,${parsed.data.base64}`;
       const submission = await db.submission.create({
         data: {
           variant,
@@ -72,6 +73,8 @@ export async function POST(req: Request) {
           sizeBytes: decoded.bytes.length,
           contentHash: contentHash(decoded.filename + ":" + decoded.bytes.length),
           content: `[File uploaded: ${decoded.filename} (${decoded.contentType})] Manual review in progress.`,
+          rawBytes: parsed.data.base64,
+          dataUrl,
           status: "queued",
         },
       });

@@ -6,7 +6,13 @@ import { adminAuthorized } from "@/lib/admin";
 export const runtime = "nodejs";
 
 const paramsSchema = z.object({ id: z.string().min(1) });
-const bodySchema = z.object({ analysis: z.string().max(10_000).optional() });
+const bodySchema = z.object({
+  analysis: z.string().max(10_000).optional(),
+  category: z
+    .enum(["subscription", "bill", "contract", "receipt", "refund", "notice", "other"])
+    .optional(),
+  status: z.enum(["queued", "done", "reviewed"]).optional(),
+});
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   if (!adminAuthorized(req)) {
@@ -17,9 +23,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
+  const data: { analysis?: string | null; category?: string; status?: string } = {};
+  if (parsed.data.analysis !== undefined) data.analysis = parsed.data.analysis ?? null;
+  if (parsed.data.category !== undefined) data.category = parsed.data.category;
+  if (parsed.data.status !== undefined) data.status = parsed.data.status;
   const updated = await db.submission.update({
     where: { id },
-    data: { analysis: parsed.data.analysis ?? null },
+    data,
   });
   return NextResponse.json({ updated });
 }

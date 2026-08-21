@@ -13,6 +13,7 @@ import { POST as analysesPOST } from "@/app/api/analyses/route";
 import { GET as analysisGET } from "@/app/api/analyses/[id]/route";
 import { POST as waitlistPOST } from "@/app/api/waitlist/route";
 import { GET as adminGET } from "@/app/api/admin/route";
+import { PATCH as adminPATCH } from "@/app/api/admin/[id]/route";
 
 beforeAll(() => {
   execSync("npx prisma migrate deploy", {
@@ -115,6 +116,37 @@ describe("POST /api/analyses", () => {
     const json = await res.json();
     expect(json.queued).toBe(true);
     expect(json.result).toBeNull();
+  });
+
+  it("retains raw bytes for queued uploads so the admin can review the actual file", async () => {
+    const b64 = Buffer.from("%PDF-1.4\n1 0 obj\n<<fake>>").toString("base64");
+    const res = await analysesPOST(
+      new Request("http://localhost/api/analyses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "bill.pdf",
+          variant: "A",
+          kind: "file",
+          contentType: "application/pdf",
+          filename: "bill.pdf",
+          base64: b64,
+        }),
+      }),
+    );
+    const { id } = await res.json();
+    process.env.ADMIN_SECRET = "test-secret";
+    const adminRes = await adminGET(
+      new Request("http://localhost/api/admin", {
+        headers: { Authorization: "Bearer test-secret" },
+      }),
+    );
+    const json = await adminRes.json();
+    const submission = json.submissions.find((s: { id: string }) => s.id === id);
+    expect(submission).toBeTruthy();
+    expect(submission.rawBytes).toBe(b64);
+    expect(submission.dataUrl).toContain("data:application/pdf;base64,");
+    expect(submission.status).toBe("queued");
   });
 
   it("rejects unsupported file types", async () => {
@@ -222,5 +254,55 @@ describe("GET /api/admin", () => {
     const json = await res.json();
     expect(json.submissions.length).toBeGreaterThan(0);
     expect(json.waitlist.length).toBeGreaterThan(0);
+  });
+});
+
+describe("PATCH /api/admin/[id]", () => {
+  it("requires auth", async () => {
+    const res = await adminPATCH(
+      new Request("http://localhost/api/admin/x", { method: "PATCH" }),
+      { params: Promise.resolve({ id: "x" }) },
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("marks a queued submission reviewed with category + analysis", async () => {
+    const b64 = Buffer.from("%PDF-1.4\n1 0 obj\n<<fake>>").toString("base64");
+    const post = await analysesPOST(
+      new Request("http://localhost/api/analyses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "bill.pdf",
+          variant: "A",
+          kind: "file",
+          contentType: "application/pdf",
+          filename: "bill.pdf",
+          base64: b64,
+        }),
+      }),
+    );
+    const { id } = await post.json();
+    process.env.ADMIN_SECRET = "test-secret";
+    const res = await adminPATCH(
+      new Request("http://localhost/api/admin/x", {
+        method: "PATCH",
+        headers: {
+          Authorization: "Bearer test-secret",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          category: "bill",
+          analysis: "Monthly electricity bill; no auto-renewal risk.",
+          status: "reviewed",
+        }),
+      }),
+      { params: Promise.resolve({ id }) },
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.updated.category).toBe("bill");
+    expect(json.updated.analysis).toContain("electricity");
+    expect(json.updated.status).toBe("reviewed");
   });
 });

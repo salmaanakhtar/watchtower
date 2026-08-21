@@ -19,7 +19,10 @@ model Submission {
   filename    String? // original upload filename (file kind only)
   sizeBytes   Int? // upload size, for quotas/observability (file kind only)
   contentHash String? // sha256 of pasted text / decoded upload — dedupe + retention
-  status      String   @default("received") // received | analyzing | done | error | queued
+  rawBytes    String? // base64 raw bytes (queued binary uploads only; Phase 0 manual review, WT-9)
+  dataUrl     String? // data: URL for the admin attachment viewer (queued uploads only)
+  category    String? // manual document category (WT-9 review loop, e.g. subscription|bill|contract|other)
+  status      String   @default("received") // received | analyzing | done | error | queued | reviewed
   analysis    String? // semi-manual analysis note (Phase 0)
   result      String? // JSON-encoded AnalysisResult (Phase 1)
   createdAt   DateTime @default(now())
