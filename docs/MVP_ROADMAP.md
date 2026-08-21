@@ -1,0 +1,185 @@
+# MVP Roadmap
+
+## Phase 0 — Validate before building deeply
+Goal: confirm that strangers understand the value proposition and will submit real inputs.
+
+Build/test:
+- Landing page
+- Multiple positioning variants
+- Upload/paste interaction prototype
+- Waitlist / early access
+- Manual or semi-manual analysis for first users
+
+Learn:
+- What people actually submit
+- Which pains occur most often
+- Which message gets the highest activation intent
+- What users are willing to connect/share
+
+## Phase 1 — Anonymous analyzer
+Core flow:
+1. Paste text or upload PDF/image/screenshot
+2. Identify document/email type
+3. Extract company/provider
+4. Extract amounts
+5. Extract dates
+6. Detect recurring price/renewal/cancellation terms
+7. Identify potential cost/deadline risk
+8. Recommend action
+9. CTA: “Watch this for me”
+
+Must-have outputs:
+- What matters
+- Potential exposure
+- Relevant deadline
+- Recommended action
+- Confidence / source evidence
+
+## Phase 2 — Accounts + Watchlist
+Add persistence:
+- Authentication
+- Saved items
+- Watchlist dashboard
+- Status
+- Deadlines
+- Potential exposure
+- Notes/history
+
+This phase converts one-off utility into a recurring product.
+
+## Phase 3 — Email forwarding
+Give each account a unique forwarding address.
+
+Use cases:
+- Bills
+- Receipts
+- Renewal notices
+- Cancellation confirmations
+- Bookings
+- Refund messages
+
+This is lower trust-friction than full mailbox access.
+
+## Phase 4 — Notifications
+Add proactive value through:
+- Email notifications
+- Later: push
+- Optional SMS/WhatsApp depending on cost and compliance
+
+Alert categories:
+- Action required
+- Upcoming deadline
+- Price increase
+- Refund unresolved
+- Renewal risk
+- Opportunity found
+
+## Phase 5 — Gmail / Outlook monitoring
+Allow users to opt into selected categories.
+
+Examples:
+- Subscription renewals
+- Price increases
+- Bills
+- Refunds
+- Travel
+- Receipts
+
+Architecture:
+Ingestion -> Classification -> Extraction -> Deduplication -> Risk/Event detection -> Watchlist update -> Notification
+
+## Phase 6 — Obligation / Life Graph
+Create durable structured state.
+
+Core entities:
+- Users
+- Companies
+- Accounts
+- Subscriptions
+- Contracts
+- Purchases
+- Assets
+- Documents
+- Deadlines
+- Payments
+- Obligations
+
+Core relationships:
+- purchased_from
+- renews_on
+- expires_on
+- cancelled_on
+- warranty_expires_on
+- billed_by
+- requires_notice_by
+
+## Phase 7 — Agent actions
+Start with low-risk execution.
+
+Low risk:
+- Draft email
+- Request information
+- Follow up
+- Schedule reminder
+
+Medium risk with approval:
+- Submit refund request
+- Negotiate renewal
+- Initiate cancellation
+
+High risk with explicit confirmation:
+- Financial transaction
+- Contractual commitment
+- Government filing
+- Major purchase
+
+## Phase 8 — Outcome verification
+Track real-world outcomes after action.
+
+Examples:
+- Refund actually received
+- Subscription actually stopped billing
+- Renewal price actually changed
+- Claim actually approved
+
+## Phase 9 — Savings / Protection dashboard
+North-star dashboard:
+- Money protected
+- Money recovered
+- Costs avoided
+- Problems caught
+- Tasks handled
+
+## Phase 10 — Referrals and sharing
+Enable privacy-safe share cards based on outcomes such as:
+- Money saved
+- Problems caught
+
+## Phase 11 — Mobile
+Build when mobile adds clear recurring value through:
+- Push notifications
+- Action approvals
+- Fast uploads/photos
+- Household engagement
+
+## Phase 12 — Household
+Add:
+- Multi-member accounts
+- Shared assets
+- Household obligations
+- Shared document vault
+
+## Phase 13 — Banking/financial integrations
+Only once trust and product-market fit justify the permission burden.
+
+## Phase 14 — Business / Enterprise
+Add:
+- Organizations
+- Workspaces
+- Roles
+- Approval policies
+- Audit logs
+- SSO
+- API
+- Admin reporting
+- Data controls
