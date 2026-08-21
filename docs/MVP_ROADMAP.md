@@ -1,5 +1,7 @@
 # MVP Roadmap
 
+> Detailed Phase 0/1 execution plan, architecture, metrics, and risks: `docs/PHASE0_1_PLAN.md`. This file is the high-level roadmap.
+
 ## Phase 0 — Validate before building deeply
 Goal: confirm that strangers understand the value proposition and will submit real inputs.
 

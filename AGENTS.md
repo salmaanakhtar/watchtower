@@ -3,6 +3,16 @@
 ## Project
 Watchtower is an agentic SaaS platform that protects users from quietly losing money, missing important deadlines, and failing to act on administrative obligations.
 
+## Repositories & issue tracking
+- **GitHub**: https://github.com/salmaanakhtar/watchtower (branch `main` is the trunk; commit directly to `main`, no feature branches).
+- **Linear**: Workspace `salmaanakhtar`, team `Watchtower` (key `WT`), project `Phase 0/1 — Validate & Ship`.
+  - Linear is the source of truth for planning and issue tracking. It should be used *alongside* the docs to keep the project organized.
+  - Labels: `phase-0`, `phase-1`, `infrastructure`, `design-language`, `security-privacy`, `growth`, `blocker`, `decision-needed`, `ai-agent`, `extraction`, `ingestion`, `watchlist`, `notifications`, `p0`/`p1`/`p2`.
+  - Workflow states: Backlog -> Todo -> In Progress -> In Review -> Done (Canceled / Duplicate also available).
+  - Templates: Feature, Bug, Phase 0 — Experiment, Phase 1 — Analyzer, Decision.
+  - Linear MCP server is configured globally in `~/.config/opencode/opencode.jsonc` (uses `@linear/mcp-server` with `LINEAR_API_KEY`).
+  - When working on a task, reference the Linear issue identifier (e.g. `WT-4`) in commit messages where applicable.
+
 ## Source of truth
 Before proposing substantial product, engineering, growth, or pricing changes, read:
 - `docs/PRODUCT_BRIEF.md`
@@ -29,6 +39,7 @@ Before proposing substantial product, engineering, growth, or pricing changes, r
 When a meaningful strategic decision is accepted:
 - Update the relevant document.
 - Append a dated entry to `docs/DECISIONS.md` with decision, rationale, and revisit trigger.
+- Move the corresponding Linear issue to `In Review` or `Done` and link the doc/commit.
 
 ## Development hygiene
 - Keep MVP scope narrow.

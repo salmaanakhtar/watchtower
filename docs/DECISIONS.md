@@ -45,3 +45,48 @@
 **Decision:** The long-term agent loop must include outcome verification, not only action initiation.
 
 **Why:** The product should deliver real outcomes rather than claiming tasks are complete when they are not.
+
+---
+
+## 2026-08-21 — Project infrastructure: Linear + GitHub
+**Decision:** Use Linear (workspace `salmaanakhtar`, team `Watchtower`/WT, project `Phase 0/1 — Validate & Ship`) as the planning/issue-tracking source of truth alongside the docs; use GitHub (`salmaanakhtar/watchtower`) for code with `main` as the only branch (commit directly to `main`).
+
+**Why:** Centralized, auditable planning plus trivial push-to-ship for a solo founder; direct-to-main keeps iteration speed high and avoids branch overhead before the project earns it.
+
+**Revisit when:** A second collaborator or a release train requires branches/reviews.
+
+---
+
+## 2026-08-21 — Linear automations & recurring issues are UI-only
+**Decision:** Automations (workflow rules) and recurring issues are not exposed via the Linear GraphQL API. The team/state/labels/templates/seed issues were created via API; automations + a weekly recurring "planning" issue must be configured in the Linear UI.
+
+**Why:** Linear's API surface does not include automation or recurrence creation.
+
+**Revisit when:** Linear exposes these via API, or when the team grows enough to justify full automation.
+
+---
+
+## 2026-08-21 — Phase 1 MVP = "Anonymous Analyzer"
+**Decision:** The MVP is a single-flow anonymous analyzer: paste/upload -> classify -> extract -> detect risk -> exposure + recommendation -> "Watch this for me" (account + watchlist). One finding rendered perfectly; minimal persistence (watchlist + deadline) is included in Phase 1 because it is required to convert a one-shot tool into a recurring product.
+
+**Why:** Time-to-first-value < time-to-DIY requires a sub-60-second result with no account friction; but the product dies if there is no reason to return (the "Saturday-afternoon test").
+
+**Revisit when:** Phase 1 exit criteria are met (precision ≥ 90%, watch conversion ≥ 25%).
+
+---
+
+## 2026-08-21 — Deterministic-first pipeline (LLM = extractor, not agent)
+**Decision:** The Phase 1 pipeline separates layers strictly: deterministic (file handling, text extraction, normalization, alert gating, scheduling) vs LLM (classification, structured extraction, explanations) vs agentic (deferred entirely). LLM output is schema-validated, gated by confidence + verification tier, and never reaches the user ungated.
+
+**Why:** Trust requires that money/deadline claims be reproducible and auditable; LLM reasoning alone cannot guarantee that. The moat is durable structured state + provenance, not model cleverness.
+
+**Revisit when:** Agent actions are introduced (Phase 7 of MVP_ROADMAP) with approval gates.
+
+---
+
+## 2026-08-21 — Design language: "Calm authority"
+**Decision:** Adopt the design language defined in `docs/DESIGN_LANGUAGE.md`: calm, proof-over-claims, financial-grade typography (tabular numbers), semantic color (green=protected, amber=watch, red=act), plain-language copy, WCAG AA.
+
+**Why:** The product's trust promise ("guardian of your money") must be reflected in every surface; alarmist or hype-heavy design would contradict the brand.
+
+**Revisit when:** Marketing scale requires a richer visual identity (illustrated guardian character, social cards).

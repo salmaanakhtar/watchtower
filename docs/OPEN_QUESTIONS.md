@@ -35,6 +35,19 @@
 - How should evidence and provenance be stored?
 - How should confidence thresholds affect alerts/actions?
 - What data should be encrypted separately or isolated?
+- **Proposed answers in `docs/PHASE0_1_PLAN.md` §5 — to confirm with the first 50 real documents.**
+- Which document categories can the extraction pipeline handle reliably (PDF scans vs screenshots vs .eml)? — needs Phase 0 tech spike.
+- Is a cheap/fast LLM sufficient for structured extraction at < $0.10/analysis, or does quality require a frontier model? — needs Phase 1 cost measurement.
+- What is the correct alert-gate threshold (confidence × verification tier) that maximizes value without false alarms? — needs Phase 1 precision audit.
+
+## Design language
+- Should the brand evolve a "guardian" character/illustration at scale, or stay abstract? (deferred to marketing needs)
+- Dark mode default for the analyzer page? (proposed: follow system)
+- Should "money protected" become a shareable social card? (Phase 2+; design now for privacy-safety)
+
+## Operations
+- Configure Linear automations + weekly recurring issue in the UI (API does not support them).
+- When should the linear team/project structure evolve (cycles, milestones)? (after Phase 1 exit criteria)
 
 ## Enterprise
 - Which enterprise wedge best maps to the consumer engine: SaaS/vendor renewals, compliance deadlines, invoice errors, or contract obligations?
