@@ -10,7 +10,7 @@ Watchtower is an agentic SaaS platform that protects users from quietly losing m
   - Labels: `phase-0`, `phase-1`, `infrastructure`, `design-language`, `security-privacy`, `growth`, `blocker`, `decision-needed`, `ai-agent`, `extraction`, `ingestion`, `watchlist`, `notifications`, `p0`/`p1`/`p2`.
   - Workflow states: Backlog -> Todo -> In Progress -> In Review -> Done (Canceled / Duplicate also available).
   - Templates: Feature, Bug, Phase 0 — Experiment, Phase 1 — Analyzer, Decision.
-  - Linear MCP server is configured globally in `~/.config/opencode/opencode.jsonc` (uses `@linear/mcp-server` with `LINEAR_API_KEY`).
+  - Linear MCP server is configured globally in `~/.config/opencode/opencode.jsonc` — **remote** server at `https://mcp.linear.app/mcp` (Streamable HTTP) authenticated with `Authorization: Bearer <LINEAR_API_KEY>`. It is NOT an npm package (there is no `@linear/mcp-server`). See https://linear.app/docs/mcp.
   - When working on a task, reference the Linear issue identifier (e.g. `WT-4`) in commit messages where applicable.
 
 ## Source of truth
