@@ -3,6 +3,25 @@
 import { useState } from "react";
 import type { AnalysisResult } from "@/lib/analysis";
 
+// Canonical obligation shape returned by the API (WT-4). Kept structural here
+// so the client stays decoupled from Prisma types.
+export interface CanonicalObligation {
+  id: string;
+  kind: string;
+  counterpartyName: string | null;
+  amountCents: number | null;
+  currency: string;
+  interval: string | null;
+  riskType: string | null;
+  exposureLowCents: number | null;
+  exposureHighCents: number | null;
+  exposureAssumption: string | null;
+  verification: "certain" | "conditional" | "hypothetical";
+  confidence: number | null;
+  status: string;
+  facts?: { label: string; value: string; quote: string }[];
+}
+
 const KIND_LABEL: Record<string, string> = {
   price_increase: "Price increase",
   subscription: "Subscription",
@@ -30,10 +49,24 @@ function formatCents(cents: number | null): string | null {
   return `$${(cents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
-export function ResultCard({ result }: { result: AnalysisResult }) {
+export function ResultCard({
+  result,
+  obligation,
+}: {
+  result: AnalysisResult;
+  obligation?: CanonicalObligation | null;
+}) {
   const [showEvidence, setShowEvidence] = useState(true);
 
   const exposureRange = (() => {
+    if (
+      (obligation?.exposureLowCents ?? null) !== null &&
+      (obligation?.exposureHighCents ?? null) !== null
+    ) {
+      const low = formatCents(obligation!.exposureLowCents);
+      const high = formatCents(obligation!.exposureHighCents);
+      if (low && high && low !== high) return `${low} – ${high}`;
+    }
     if (result.exposureLowCentsPerYear !== null && result.exposureHighCentsPerYear !== null) {
       const low = formatCents(result.exposureLowCentsPerYear);
       const high = formatCents(result.exposureHighCentsPerYear);
@@ -41,6 +74,8 @@ export function ResultCard({ result }: { result: AnalysisResult }) {
     }
     return result.exposureLabel;
   })();
+
+  const facts = obligation?.facts?.length ? obligation.facts : result.facts;
 
   return (
     <div
@@ -114,18 +149,22 @@ export function ResultCard({ result }: { result: AnalysisResult }) {
         </button>
         {showEvidence && (
           <ul className="mt-3 space-y-2 rounded-lg bg-(--wt-paper-50) p-4" data-testid="evidence-list">
-            {result.facts.length === 0 ? (
+            {facts.length === 0 ? (
               <li className="text-sm text-(--wt-ink-500)">No facts extracted from this document.</li>
             ) : (
-              result.facts.map((f, i) => (
+              facts.map((f, i) => (
                 <li key={i} className="text-sm">
                   <span className="font-semibold text-(--wt-ink-700)">{f.label}:</span>{" "}
                   <span className="text-(--wt-ink-900)">{f.value}</span>
-                  {f.source && (
+                  {"quote" in f && f.quote ? (
+                    <span className="ml-2 font-mono text-xs text-(--wt-ink-500)" title={f.quote}>
+                      “{f.quote.slice(0, 60)}…”
+                    </span>
+                  ) : "source" in f && f.source ? (
                     <span className="ml-2 font-mono text-xs text-(--wt-ink-500)" title={f.source}>
                       “{f.source.slice(0, 60)}…”
                     </span>
-                  )}
+                  ) : null}
                 </li>
               ))
             )}

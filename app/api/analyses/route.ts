@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { analyzeText } from "@/lib/analysis";
 import { db } from "@/lib/db";
+import { toCanonical } from "@/lib/obligations";
 import {
   contentHash,
   decodeUpload,
@@ -109,7 +110,14 @@ export async function POST(req: Request) {
         analysis: JSON.stringify({ title: result.title, exposure: result.exposureLabel }),
       },
     });
-    return NextResponse.json({ id: submission.id, result, queued: false });
+    const canonical = await persistCanonical(submission.id, result, {
+      source: "upload",
+      filename: decoded.filename,
+      contentType: decoded.contentType,
+      extractedText: decoded.decodedText.slice(0, MAX_DECODED_CHARS),
+      contentHash: contentHash(decoded.decodedText),
+    });
+    return NextResponse.json({ id: submission.id, result, queued: false, obligation: canonical });
   }
 
   const result = analyzeText(content);
@@ -125,6 +133,87 @@ export async function POST(req: Request) {
       analysis: JSON.stringify({ title: result.title, exposure: result.exposureLabel }),
     },
   });
+  const canonical = await persistCanonical(submission.id, result, {
+    source: "paste",
+    filename: null,
+    contentType: contentType ?? "text/plain",
+    extractedText: content,
+    contentHash: contentHash(content),
+  });
 
-  return NextResponse.json({ id: submission.id, result, queued: false });
+  return NextResponse.json({ id: submission.id, result, queued: false, obligation: canonical });
+}
+
+// WT-4: persist the canonical obligation + provenance facts for a submission.
+// Returns the created obligation id so clients can reference the durable row.
+async function persistCanonical(
+  submissionId: string,
+  result: ReturnType<typeof analyzeText>,
+  document: {
+    source: string;
+    filename: string | null;
+    contentType: string | null;
+    extractedText: string;
+    contentHash: string | null;
+  },
+): Promise<{ id: string } | null> {
+  try {
+    const { obligation, facts } = toCanonical(result, {
+      source: document.source,
+      filename: document.filename,
+      contentType: document.contentType,
+      extractedText: document.extractedText,
+      extractionMethod: document.source === "paste" ? "raw" : "raw",
+      contentHash: document.contentHash,
+    });
+
+    const created = await db.document.create({
+      data: {
+        source: document.source,
+        filename: document.filename,
+        contentType: document.contentType,
+        extractedText: document.extractedText,
+        extractionMethod: "raw",
+        contentHash: document.contentHash,
+        submissionId,
+        obligations: {
+          create: {
+            kind: obligation.kind,
+            counterpartyName: obligation.counterpartyName,
+            amountCents: obligation.amountCents,
+            currency: obligation.currency ?? "USD",
+            interval: obligation.interval,
+            autoRenews: obligation.autoRenews,
+            termsQuote: obligation.termsQuote,
+            riskType: obligation.riskType,
+            exposureLowCents: obligation.exposureLowCents,
+            exposureHighCents: obligation.exposureHighCents,
+            exposureAssumption: obligation.exposureAssumption,
+            verification: obligation.verification,
+            confidence: obligation.confidence,
+            status: "open",
+            facts: {
+              create: facts.map((f) => ({
+                label: f.label,
+                value: f.value,
+                quote: f.quote,
+                offsetStart: f.offsetStart,
+                offsetEnd: f.offsetEnd,
+                confidence: f.confidence,
+              })),
+            },
+          },
+        },
+      },
+      select: { id: true, obligations: { select: { id: true } } },
+    });
+
+    const obligationId = created.obligations[0]?.id ?? null;
+    return obligationId ? { id: obligationId } : null;
+  } catch (err) {
+    // Canonical persistence must never break the user-facing result. The
+    // submission row is already saved; log and degrade to the legacy shape.
+    console.error("[wt4] failed to persist canonical obligation", err);
+    return null;
+  }
 }

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useVariant } from "./variant-provider";
 import { SAMPLE_TEXT } from "@/lib/variants";
 import type { AnalysisResult } from "@/lib/analysis";
+import type { CanonicalObligation } from "@/components/result-card";
 import { MAX_UPLOAD_BYTES } from "@/lib/upload";
 
 export type Phase = "idle" | "processing" | "done" | "error";
@@ -14,16 +15,19 @@ interface AnalyzeResponse {
   queued?: boolean;
   message?: string;
   error?: string;
+  obligation?: CanonicalObligation | null;
 }
 
 export function InputZone({
   phase,
   onPhase,
   onResult,
+  onObligation,
 }: {
   phase: Phase;
   onPhase: (p: Phase) => void;
   onResult: (r: AnalysisResult | null) => void;
+  onObligation?: (o: CanonicalObligation | null) => void;
 }) {
   const { variant } = useVariant();
   const [tab, setTab] = useState<"paste" | "file">("paste");
@@ -48,10 +52,12 @@ export function InputZone({
         setFileName(fileName ?? null);
         setFileMessage(json.message ?? "Queued for manual review.");
         onResult(null);
+        onObligation?.(null);
         onPhase("done");
         return;
       }
       onResult(json.result);
+      onObligation?.(json.obligation ?? null);
       onPhase("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong. Try again.");

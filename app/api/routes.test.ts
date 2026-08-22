@@ -14,6 +14,7 @@ import { GET as analysisGET } from "@/app/api/analyses/[id]/route";
 import { POST as waitlistPOST } from "@/app/api/waitlist/route";
 import { GET as adminGET } from "@/app/api/admin/route";
 import { PATCH as adminPATCH } from "@/app/api/admin/[id]/route";
+import { db } from "@/lib/db";
 
 beforeAll(() => {
   execSync("npx prisma migrate deploy", {
@@ -58,6 +59,91 @@ describe("POST /api/analyses", () => {
       }),
     );
     expect(res.status).toBe(400);
+  });
+
+  it("persists the canonical obligation + provenance facts (WT-4)", async () => {
+    const res = await analysesPOST(
+      new Request("http://localhost/api/analyses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.",
+          variant: "A",
+          kind: "paste",
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.obligation?.id).toBeTruthy();
+
+    const doc = await db.document.findFirst({
+      where: { submissionId: json.id },
+      select: {
+        id: true,
+        source: true,
+        contentHash: true,
+        obligations: {
+          select: {
+            id: true,
+            kind: true,
+            counterpartyName: true,
+            amountCents: true,
+            currency: true,
+            interval: true,
+            riskType: true,
+            verification: true,
+            confidence: true,
+            status: true,
+            facts: { select: { label: true, quote: true, offsetStart: true, offsetEnd: true } },
+          },
+        },
+      },
+    });
+    expect(doc).toBeTruthy();
+    expect(doc!.source).toBe("paste");
+    expect(doc!.contentHash).toBeTruthy();
+    expect(doc!.obligations).toHaveLength(1);
+    const ob = doc!.obligations[0];
+    expect(ob.kind).toBe("subscription");
+    expect(ob.counterpartyName).toContain("Adobe");
+    expect(ob.amountCents).toBe(Math.round(19.99 * 12 * 100));
+    expect(ob.currency).toBe("USD");
+    expect(ob.interval).toBe("yearly");
+    expect(ob.riskType).toBe("auto_renewal");
+    expect(ob.verification).toBe("certain");
+    expect(ob.confidence).toBeGreaterThanOrEqual(0.9);
+    expect(ob.status).toBe("open");
+    const labels = ob.facts.map((f) => f.label);
+    expect(labels).toContain("amount");
+    expect(labels).toContain("deadline");
+    expect(labels).toContain("counterparty");
+    const amount = ob.facts.find((f) => f.label === "amount");
+    expect(amount!.quote).toContain("$19.99/month");
+    expect(amount!.offsetStart).toBeTypeOf("number");
+    expect(amount!.offsetEnd).toBeTypeOf("number");
+  });
+
+  it("returns the canonical obligation from GET /api/analyses/[id] (WT-4)", async () => {
+    const post = await analysesPOST(
+      new Request("http://localhost/api/analyses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.",
+          variant: "A",
+          kind: "paste",
+        }),
+      }),
+    );
+    const { id } = await post.json();
+    const res = await analysisGET(new Request("http://localhost/api/analyses/x"), {
+      params: Promise.resolve({ id }),
+    });
+    const json = await res.json();
+    expect(json.obligation?.id).toBeTruthy();
+    expect(json.obligation?.kind).toBe("subscription");
+    expect(json.obligation?.facts.length).toBeGreaterThan(0);
   });
 
   it("rejects empty content", async () => {

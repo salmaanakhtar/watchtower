@@ -1,5 +1,8 @@
-// Watchtower Phase 0/1 schema
-// Source of truth: docs/PHASE0_1_PLAN.md §5.3 (obligation/event schema)
+// Watchtower Phase 1 canonical schema (WT-4)
+// Source of truth: prisma/schema.prisma (canonical); conceptual model in
+// docs/PHASE0_1_PLAN.md §5.3. Every extracted fact is a row with provenance +
+// confidence; every obligation is watchable. Legacy Phase 0 shapes
+// (Submission.result JSON) remain for the queue.
 
 generator client {
   provider = "prisma-client"
@@ -9,6 +12,8 @@ generator client {
 datasource db {
   provider = "sqlite"
 }
+
+// ─── Phase 0 legacy: submission queue + waitlist ─────────────────────────────
 
 model Submission {
   id          String   @id @default(cuid())
@@ -24,7 +29,7 @@ model Submission {
   category    String? // manual document category (WT-9 review loop, e.g. subscription|bill|contract|other)
   status      String   @default("received") // received | analyzing | done | error | queued | reviewed
   analysis    String? // semi-manual analysis note (Phase 0)
-  result      String? // JSON-encoded AnalysisResult (Phase 1)
+  result      String? // JSON-encoded AnalysisResult (Phase 1, deprecated in favor of canonical rows)
   createdAt   DateTime @default(now())
 
   @@index([contentHash, createdAt]) // dedupe lookups + retention sweeps
@@ -35,4 +40,183 @@ model Waitlist {
   email     String   @unique
   source    String   @default("landing") // landing | admin
   createdAt DateTime @default(now())
+}
+
+// ─── Canonical obligation/event schema (WT-4) ────────────────────────────────
+
+model User {
+  id             String       @id @default(cuid())
+  email          String?      @unique
+  anonymous      Boolean      @default(true) // true until account creation (WT-5)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  documents      Document[]
+  obligations    Obligation[]
+  watchItems     WatchItem[]
+  payments       Payment[]
+  events         Event[]
+}
+
+model Company {
+  id          String      @id @default(cuid())
+  name        String // canonical/clean name
+  normalized  String      @unique // lowercase-keyed dedupe token (Adobe vs Adobe Inc)
+  domain      String? // counterparty web domain, when known
+  createdAt   DateTime    @default(now())
+  obligations Obligation[]
+  payments    Payment[]
+}
+
+model Document {
+  id              String           @id @default(cuid())
+  userId          String? // null for fully anonymous submissions (pre-account)
+  source          String           @default("paste") // paste | upload | forward
+  filename        String?
+  contentType     String? // e.g. text/plain, application/pdf, image/png
+  extractedText   String // deterministic extraction (text preview for images/PDFs)
+  extractionMethod String          @default("raw") // raw | pdf-parse | ocr | llm
+  contentHash     String? // sha256 — dedupe + retention sweeps
+  storageKey      String? // s3://… once object storage lands (WT-8)
+  createdAt       DateTime         @default(now())
+  submissionId    String? // link back to the Phase 0 queue row
+  user            User?            @relation(fields: [userId], references: [id])
+  obligations     Obligation[]
+  facts           ProvenanceFact[]
+}
+
+// The core watchable entity: a durable obligation between the user and a
+// counterparty (subscription, contract, bill, refund, warranty, renewal, …).
+model Obligation {
+  id                 String   @id @default(cuid())
+  documentId         String?
+  userId             String?
+  kind               String // subscription | contract | bill | refund | warranty | insurance | renewal | trial | other
+  counterpartyId     String?
+  counterpartyName   String? // denormalized display name (may exist without a Company row)
+  amountCents        Int? // always integer cents — never floats
+  currency           String   @default("USD")
+  interval           String? // monthly | yearly | one_time | …
+  amountConfidence   Float? // ∈ [0,1]
+  startDate          DateTime?
+  renewalDate        DateTime?
+  noticeDeadlineDate DateTime?
+  expiryDate         DateTime?
+  cancellationNoticeDays Int? // notice period required to cancel
+  autoRenews         Boolean? // false = no auto-renewal; null = unknown
+  termsQuote         String? // verbatim cancellation/auto-renewal clause
+  riskType           String? // price_increase | auto_renewal | forgotten_trial | refund_due | deadline | incorrect_charge | none
+  exposureLowCents   Int? // conservative low bound of potential loss
+  exposureHighCents  Int? // conservative high bound
+  exposureAssumption String? // explicit statement, e.g. "$9.99/mo × 12 = $120 if not cancelled"
+  dueDate            DateTime? // when action is required (deadline of the risk)
+  verification       String   @default("hypothetical") // certain | conditional | hypothetical
+  confidence         Float   @default(0.0) // overall finding confidence ∈ [0,1]
+  status             String   @default("open") // open | watched | ignored | resolved | disputed
+  userNote           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  document     Document?         @relation(fields: [documentId], references: [id])
+  user         User?             @relation(fields: [userId], references: [id])
+  counterparty Company?          @relation(fields: [counterpartyId], references: [id])
+  facts        ProvenanceFact[]
+  watchItems   WatchItem[]
+  deadlines    Deadline[]
+  payments     Payment[]
+  events       Event[]
+
+  @@index([userId, status])
+  @@index([dueDate])
+  @@index([renewalDate])
+}
+
+// Provenance: every extracted fact is a row with the source quote + offset.
+// This is the audit trail that makes confidence explainable and corrections possible.
+model ProvenanceFact {
+  id          String    @id @default(cuid())
+  documentId  String?
+  obligationId String?
+  label       String // amount | renewal_date | counterparty | deadline | cancellation_terms | …
+  value       String // normalized value
+  quote       String // verbatim source text
+  offsetStart Int? // character offset into extractedText
+  offsetEnd   Int?
+  confidence  Float? // per-fact confidence ∈ [0,1]
+  createdAt   DateTime  @default(now())
+
+  document   Document?   @relation(fields: [documentId], references: [id])
+  obligation Obligation? @relation(fields: [obligationId], references: [id])
+
+  @@index([documentId])
+  @@index([obligationId])
+}
+
+// A user-facing watch item — the persisted state that makes the product recurring.
+model WatchItem {
+  id          String    @id @default(cuid())
+  userId      String?
+  obligationId String
+  status      String    @default("open") // open | upcoming | due | resolved | dismissed
+  deadline    DateTime?
+  nextCheckAt DateTime?
+  notifiedAt  DateTime? // last notification sent
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user       User?       @relation(fields: [userId], references: [id])
+  obligation Obligation  @relation(fields: [obligationId], references: [id])
+
+  @@index([userId, status])
+  @@index([obligationId])
+}
+
+// Deadlines attached to an obligation (a contract may have several).
+model Deadline {
+  id          String    @id @default(cuid())
+  obligationId String
+  kind        String    @default("deadline") // notice | renewal | expiry | payment | other
+  dueAt       DateTime
+  description String?
+  createdAt   DateTime  @default(now())
+
+  obligation Obligation @relation(fields: [obligationId], references: [id])
+
+  @@index([obligationId, dueAt])
+}
+
+// Payments / charges mentioned in documents (amounts, intervals).
+model Payment {
+  id           String    @id @default(cuid())
+  userId       String?
+  companyId    String?
+  obligationId String?
+  amountCents  Int
+  currency     String    @default("USD")
+  interval     String? // monthly | yearly | one_time | …
+  date         DateTime?
+  description  String?
+  createdAt    DateTime  @default(now())
+
+  user       User?       @relation(fields: [userId], references: [id])
+  company    Company?    @relation(fields: [companyId], references: [id])
+  obligation Obligation? @relation(fields: [obligationId], references: [id])
+
+  @@index([obligationId])
+}
+
+// Event log: what happened to an obligation over time (detected → watched → resolved).
+// Append-only; the substrate for outcome verification (Phase 8) + audit.
+model Event {
+  id          String    @id @default(cuid())
+  userId      String?
+  obligationId String?
+  type        String // created | analyzed | watched | ignored | resolved | disputed | notified | …
+  detail      String?
+  createdAt   DateTime  @default(now())
+
+  user       User?       @relation(fields: [userId], references: [id])
+  obligation Obligation? @relation(fields: [obligationId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([obligationId])
 }

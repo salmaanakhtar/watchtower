@@ -106,3 +106,10 @@
 **Why:** Full-stack control (Node worker, Prisma migrations, persistent SQLite volume), the VPS infra already exists for other projects, and the tailnet-private hostname keeps Phase 0 traffic contained.
 
 **Revisit when:** Public internet launch requires DNS/public visibility, horizontal scaling, or managed Postgres (then revisit the SQLite choice).
+
+## 2026-08-22 — WT-4: Canonical obligation/event schema v1 shipped
+**Decision:** Adopted the canonical schema from PHASE0_1_PLAN.md §5.3 as real relational tables (User, Company, Document, Obligation, ProvenanceFact, WatchItem, Deadline, Payment, Event). Every analysis now persists a Document row + Obligation row (kind, counterparty, amount in cents + currency, risk type, exposure low/high, verification tier certain|conditional|hypothetical, confidence) + ProvenanceFact rows (label, value, verbatim quote, char offsets). The legacy Submission.result JSON stays for backward compat and is deprecated. API responses now carry an obligation object; the UI renders evidence from canonical facts.
+
+**Why:** The moat is durable, watchable, verifiable obligations with provenance — not one-off summaries. Relational rows (not a JSON blob) make the alert gate, watchlist, dedupe, and corrections possible. Money is stored as integer cents; verification + confidence gate alerts deterministically.
+
+**Revisit when:** WT-3 lands (extraction pipeline) — swap the deterministic mapper's human dates for ISO dates and per-field confidence; WT-5 adds User linkage to real accounts.

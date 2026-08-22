@@ -37,5 +37,37 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ error: "No result available" }, { status: 404 });
   }
 
-  return NextResponse.json({ id: submission.id, result, queued: false });
+  // WT-4: include the canonical obligation + provenance facts when present.
+  let obligation: unknown = null;
+  try {
+    const doc = await db.document.findFirst({
+      where: { submissionId: id },
+      select: {
+        obligations: {
+          select: {
+            id: true,
+            kind: true,
+            counterpartyName: true,
+            amountCents: true,
+            currency: true,
+            interval: true,
+            riskType: true,
+            exposureLowCents: true,
+            exposureHighCents: true,
+            exposureAssumption: true,
+            verification: true,
+            confidence: true,
+            status: true,
+            facts: { select: { label: true, value: true, quote: true } },
+          },
+        },
+      },
+    });
+    const first = doc?.obligations[0];
+    if (first) obligation = first;
+  } catch (err) {
+    console.error("[wt4] failed to load canonical obligation", err);
+  }
+
+  return NextResponse.json({ id: submission.id, result, queued: false, obligation });
 }

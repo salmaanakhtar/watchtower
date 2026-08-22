@@ -246,6 +246,8 @@ Deliverables (Linear WT-2..WT-8):
 
 **Status:** WT-2 (anonymous analyzer MVP) shipped 2026-08-22 on the deterministic path. AnalysisResult carries provenance offsets + exposure low/high cents + assumption. Uploads: text-ish files analyzed immediately (client-side base64 → server decode with magic-byte MIME check); PDF/images queued for manual review (honest message, no fake results). No LLM yet, no raw file bytes stored. See `docs/DECISIONS.md` (2026-08-22 entry) and commit `WT-2`.
 
+**Status (WT-4):** Canonical obligation/event schema v1 shipped 2026-08-22 (migration `20260822062503_wt4_canonical_schema`). Real tables: `User`, `Company`, `Document`, `Obligation`, `ProvenanceFact`, `WatchItem`, `Deadline`, `Payment`, `Event` (see `prisma/schema.prisma`). Every analysis now persists Document + Obligation (kind, counterparty, amount in integer cents + currency, risk type, exposure low/high + assumption, verification tier, confidence) + ProvenanceFact rows (label, value, verbatim quote, character offsets). The deterministic mapper lives in `lib/obligations.ts` (with unit tests). The legacy `Submission.result` JSON is retained for the Phase 0 queue and marked deprecated. API responses (`POST/GET /api/analyses`) carry an `obligation` object; the UI renders evidence from canonical facts. Dates remain human-readable strings from the deterministic engine until WT-3 ships ISO-date extraction.
+
 Exit criteria:
 - Time-to-result < 60 s median (p90 < 120 s).
 - Precision ≥ 90% on actionable findings (human audit, n ≥ 50 per category).

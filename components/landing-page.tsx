@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { InputZone, type Phase } from "./input-zone";
-import { ResultCard } from "./result-card";
+import { ResultCard, type CanonicalObligation } from "./result-card";
 import { WaitlistForm } from "./waitlist-form";
 import { useVariant } from "./variant-provider";
 import type { AnalysisResult } from "@/lib/analysis";
@@ -27,6 +27,7 @@ export function LandingPage() {
   const { variant, copy } = useVariant();
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [obligation, setObligation] = useState<CanonicalObligation | null>(null);
 
   return (
     <main className="flex flex-1 flex-col">
@@ -64,12 +65,12 @@ export function LandingPage() {
         </p>
 
         <div className="mt-10 w-full">
-          <InputZone phase={phase} onPhase={setPhase} onResult={setResult} />
+          <InputZone phase={phase} onPhase={setPhase} onResult={setResult} onObligation={setObligation} />
         </div>
 
         {phase === "done" && result && (
           <div className="mt-8 w-full space-y-6 pb-8">
-            <ResultCard result={result} />
+            <ResultCard result={result} obligation={obligation} />
             <WaitlistForm />
           </div>
         )}
