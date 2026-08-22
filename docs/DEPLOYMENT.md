@@ -35,7 +35,7 @@ python3 /opt/hermes/agent/data/skills/deployments/salmaan-deploy/scripts/hermes-
 ... secret unset --subdomain watchtower --key KEY --confirm yes
 ```
 
-The deployer recreates the container so the new env takes effect. Current keys: `DATABASE_URL`, `ADMIN_SECRET`.
+The deployer recreates the container so the new env takes effect. Current keys: `DATABASE_URL`, `ADMIN_SECRET`, `AUTH_SECRET`, `AUTH_MAGIC_SECRET` (WT-5, set 2026-08-22; both random 48-char alphanumerics).
 
 ### Deployment observations (2026-08-22, WT-2)
 
