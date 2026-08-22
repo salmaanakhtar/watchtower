@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { AnalysisResult } from "@/lib/analysis";
+import { WatchButton } from "./watch-button";
 
 // Canonical obligation shape returned by the API (WT-4). Kept structural here
 // so the client stays decoupled from Prisma types.
@@ -137,6 +138,13 @@ export function ResultCard({
           </p>
           <p className="mt-1 text-sm text-(--wt-ink-900)">{result.recommendation}</p>
         </div>
+
+        {/* Watch CTA — only when there's a durable obligation to persist (WT-5) */}
+        {obligation?.id && result.kind !== "none" && (
+          <div className="mt-5" data-testid="watch-cta">
+            <WatchButton obligationId={obligation.id} />
+          </div>
+        )}
 
         {/* Evidence panel */}
         <button

@@ -71,7 +71,7 @@ export function LandingPage() {
         {phase === "done" && result && (
           <div className="mt-8 w-full space-y-6 pb-8">
             <ResultCard result={result} obligation={obligation} />
-            <WaitlistForm />
+            {result.kind === "none" && <WaitlistForm />}
           </div>
         )}
       </section>

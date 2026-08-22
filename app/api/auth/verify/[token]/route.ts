@@ -11,28 +11,23 @@ export const runtime = "nodejs";
 
 const paramsSchema = z.object({ token: z.string().min(10).max(500) });
 
-function origin(req: Request): string {
-  const url = new URL(req.url);
-  return `${url.protocol}//${url.host}`;
-}
-
 /**
  * Magic-link verification (WT-5). Exchanges a valid token for a session cookie
  * and redirects to the watchlist (or back to the analysis if a pending
- * obligation id cookie is set).
+ * obligation id cookie is set). Uses a relative Location so the browser stays
+ * on whatever origin it came from (cookies are origin-scoped).
  */
 export async function GET(req: Request, ctx: { params: Promise<{ token: string }> }) {
-  const base = origin(req);
   let token: string;
   try {
     token = paramsSchema.parse(await ctx.params).token;
   } catch {
-    return NextResponse.redirect(`${base}/?auth=invalid`, 302);
+    return redirectWith("/?auth=invalid");
   }
 
   const payload = parseMagicToken(token);
   if (!payload) {
-    return NextResponse.redirect(`${base}/?auth=invalid`, 302);
+    return redirectWith("/?auth=invalid");
   }
 
   const email = payload.email;
@@ -46,10 +41,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   const pendingMatch = cookieHeader.match(/(?:^|;\s*)wt_pending_obligation=([^;]+)/);
   const pending = pendingMatch?.[1] ? decodeURIComponent(pendingMatch[1]) : null;
   const target = pending
-    ? `${base}/watch?obligation=${encodeURIComponent(pending)}`
-    : `${base}/watchlist`;
+    ? `/watch?obligation=${encodeURIComponent(pending)}`
+    : "/watchlist";
 
-  const res = NextResponse.redirect(target, 302);
+  const res = redirectWith(target);
   res.cookies.set("wt_session", createSessionToken(user.id), {
     path: "/",
     httpOnly: true,
@@ -62,5 +57,14 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
     res.cookies.set("wt_pending_obligation", "", { path: "/", maxAge: 0 });
   }
 
+  return res;
+}
+
+function redirectWith(location: string): NextResponse {
+  // NextResponse.redirect requires an absolute URL; we build a 302 to a
+  // throwaway origin, then override Location with the relative path so the
+  // browser stays on the origin it came from (cookies are origin-scoped).
+  const res = NextResponse.redirect("http://localhost" + location, 302);
+  res.headers.set("Location", location);
   return res;
 }

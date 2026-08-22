@@ -64,13 +64,15 @@ test.describe("Paste flow", () => {
 });
 
 test.describe("Waitlist", () => {
-  test("join the list after analysis", async ({ page, context }) => {
+  test("join the list after a no-risk analysis", async ({ page, context }) => {
     await context.addCookies([
       { name: "wt_variant", value: "A", url: "http://127.0.0.1:3100" },
     ]);
     await page.goto("/");
+    // A document with no renewal/price/deadline yields kind "none", which
+    // shows the waitlist CTA (WT-5: watch CTA replaces it for watchable items).
     await page.getByTestId("paste-input").fill(
-      "Your plan renews at $9.99/month before December 1.",
+      "Dear customer, thank you for your purchase of a lawnmower. It will arrive within 5 business days.",
     );
     await page.getByTestId("analyze-button").click();
     await expect(page.getByTestId("waitlist-form")).toBeVisible({ timeout: 15_000 });
@@ -82,7 +84,9 @@ test.describe("Waitlist", () => {
 
   test("invalid email shows error", async ({ page }) => {
     await page.goto("/");
-    await page.getByTestId("paste-input").fill("trial ends December 5 at $12.99/month");
+    await page.getByTestId("paste-input").fill(
+      "Dear customer, thank you for your purchase. It will arrive within 5 business days.",
+    );
     await page.getByTestId("analyze-button").click();
     await expect(page.getByTestId("waitlist-form")).toBeVisible({ timeout: 15_000 });
     await page.getByTestId("waitlist-email").fill("not-an-email");

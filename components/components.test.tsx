@@ -6,6 +6,8 @@ import userEvent from "@testing-library/user-event";
 import { InputZone, type Phase } from "@/components/input-zone";
 import { VariantProvider } from "@/components/variant-provider";
 import { ResultCard } from "@/components/result-card";
+import { WatchButton } from "@/components/watch-button";
+import { WatchlistView, type WatchlistItem } from "@/components/watchlist";
 import type { AnalysisResult } from "@/lib/analysis";
 
 function InputZoneHarness({
@@ -163,5 +165,144 @@ describe("ResultCard", () => {
     expect(list).toBeInTheDocument();
     await user.click(screen.getByTestId("evidence-toggle"));
     expect(screen.queryByTestId("evidence-list")).not.toBeInTheDocument();
+  });
+
+  it("shows the watch CTA when an obligation id is present (WT-5)", () => {
+    render(
+      <ResultCard
+        result={result}
+        obligation={{
+          id: "obl_1",
+          kind: "subscription",
+          counterpartyName: "Adobe",
+          amountCents: 23988,
+          currency: "USD",
+          interval: "yearly",
+          riskType: "auto_renewal",
+          exposureLowCents: 23988,
+          exposureHighCents: 23988,
+          exposureAssumption: "$19.99/month × 12 months = $240/year if this renews",
+          verification: "certain",
+          confidence: 0.92,
+          status: "open",
+        }}
+      />,
+    );
+    expect(screen.getByTestId("watch-cta")).toBeInTheDocument();
+    expect(screen.getByTestId("watch-button")).toBeInTheDocument();
+  });
+});
+
+describe("WatchButton", () => {
+  it("persists a watch when signed in", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ watchItem: { id: "w1" }, needsAccount: false }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<WatchButton obligationId="obl_1" />);
+    await user.click(screen.getByTestId("watch-button"));
+    await screen.findByTestId("watching-state");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/watch",
+      expect.objectContaining({ method: "POST" }),
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it("offers email capture for anonymous users", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ watchItem: null, needsAccount: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<WatchButton obligationId="obl_1" />);
+    await user.click(screen.getByTestId("watch-button"));
+    await screen.findByTestId("watch-email-form");
+    vi.unstubAllGlobals();
+  });
+
+  it("sends a magic link from the email form", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ watchItem: null, needsAccount: true }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ok: true, delivered: true, token: "tok" }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<WatchButton obligationId="obl_1" />);
+    await user.click(screen.getByTestId("watch-button"));
+    await screen.findByTestId("watch-email-form");
+    await user.type(screen.getByTestId("watch-email-input"), "a@b.com");
+    await user.click(screen.getByTestId("watch-email-submit"));
+    await screen.findByTestId("watch-email-sent");
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/auth/request",
+      expect.objectContaining({ method: "POST" }),
+    );
+    vi.unstubAllGlobals();
+  });
+});
+
+const watchItem: WatchlistItem = {
+  id: "w1",
+  status: "open",
+  userNote: null,
+  deadlineLabel: "October 14",
+  obligation: {
+    id: "obl_1",
+    kind: "subscription",
+    counterpartyName: "Adobe",
+    amountCents: 23988,
+    currency: "USD",
+    interval: "yearly",
+    riskType: "auto_renewal",
+    exposureLowCents: 23988,
+    exposureHighCents: 23988,
+    exposureAssumption: "$19.99/month × 12 months = $240/year if this renews",
+    verification: "certain",
+    confidence: 0.92,
+  },
+};
+
+describe("WatchlistView", () => {
+  it("renders items with status, deadline, and exposure", () => {
+    render(<WatchlistView user={{ id: "u1", email: "me@example.com" }} items={[watchItem]} />);
+    expect(screen.getByTestId("watchlist")).toBeInTheDocument();
+    expect(screen.getByTestId("status-chip")).toHaveTextContent("Open");
+    expect(screen.getByText("Adobe")).toBeInTheDocument();
+    expect(screen.getByText("October 14")).toBeInTheDocument();
+    expect(screen.getByTestId("watchlist-item")).toHaveTextContent("$240/year");
+  });
+
+  it("shows the empty state", () => {
+    render(<WatchlistView user={{ id: "u1", email: "me@example.com" }} items={[]} />);
+    expect(screen.getByTestId("watchlist-empty")).toHaveTextContent("Nothing watched yet");
+  });
+
+  it("resolves an item via PATCH", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        watchItem: { id: "w1", status: "resolved", userNote: null },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<WatchlistView user={{ id: "u1", email: "me@example.com" }} items={[watchItem]} />);
+    await user.click(screen.getByTestId("resolve-button"));
+    await screen.findByText("Resolved");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/watch/w1",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    vi.unstubAllGlobals();
   });
 });
