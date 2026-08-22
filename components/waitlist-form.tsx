@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "./ui/button";
 
 export function WaitlistForm() {
   const [email, setEmail] = useState("");
@@ -59,14 +60,9 @@ export function WaitlistForm() {
           data-testid="waitlist-email"
           aria-label="Email address"
         />
-        <button
-          type="submit"
-          disabled={state === "loading"}
-          className="rounded-lg bg-(--wt-guardian-600) px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-(--wt-guardian-700) disabled:opacity-50"
-          data-testid="waitlist-submit"
-        >
+        <Button type="submit" disabled={state === "loading"} data-testid="waitlist-submit">
           {state === "loading" ? "Joining…" : "Join the list"}
-        </button>
+        </Button>
       </div>
       {error && (
         <p className="mt-3 text-sm text-(--wt-alert-600)" data-testid="waitlist-error">

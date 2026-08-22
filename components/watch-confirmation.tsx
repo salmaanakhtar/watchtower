@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { buttonClasses } from "./ui/button";
 
 export interface WatchConfirmationObligation {
   id: string;
@@ -48,17 +49,10 @@ export function WatchConfirmation({
           remind you before the deadline.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Link
-            href="/watchlist"
-            className="rounded-lg bg-(--wt-guardian-600) px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-(--wt-guardian-700)"
-            data-testid="view-watchlist"
-          >
+          <Link href="/watchlist" className={buttonClasses()} data-testid="view-watchlist">
             View my watchlist
           </Link>
-          <Link
-            href="/"
-            className="rounded-lg border border-(--wt-ink-300) px-5 py-2.5 text-sm font-medium text-(--wt-ink-700) transition-colors hover:border-(--wt-guardian-600) hover:text-(--wt-guardian-600)"
-          >
+          <Link href="/" className={buttonClasses("secondary")}>
             Analyze another document
           </Link>
         </div>

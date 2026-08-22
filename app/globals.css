@@ -1,50 +1,13 @@
 @import "tailwindcss";
+@import "../styles/tokens.css";
 
-/* Watchtower design tokens — source of truth: docs/DESIGN_LANGUAGE.md */
-:root {
-  --wt-ink-900: #0f172a;
-  --wt-ink-700: #334155;
-  --wt-ink-500: #64748b;
-  --wt-ink-300: #cbd5e1;
-  --wt-paper-50: #f8fafc;
-  --wt-paper-0: #ffffff;
-  --wt-guardian-600: #0f766e;
-  --wt-guardian-700: #0d5f59;
-  --wt-guardian-100: #ccfbf1;
-  --wt-save-600: #15803d;
-  --wt-save-100: #dcfce7;
-  --wt-warn-600: #b45309;
-  --wt-warn-100: #fef3c7;
-  --wt-alert-600: #b91c1c;
-  --wt-alert-100: #fee2e2;
-  --wt-neutral-500: #64748b;
-}
-
+/* App-level theme wiring. Tokens live in styles/tokens.css (source of truth:
+   lib/design-tokens.ts + docs/DESIGN_LANGUAGE.md). */
 @theme inline {
   --color-background: var(--wt-paper-50);
   --color-foreground: var(--wt-ink-900);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --wt-ink-900: #f8fafc;
-    --wt-ink-700: #cbd5e1;
-    --wt-ink-500: #94a3b8;
-    --wt-ink-300: #475569;
-    --wt-paper-50: #0f172a;
-    --wt-paper-0: #1e293b;
-    --wt-guardian-600: #14b8a6;
-    --wt-guardian-700: #2dd4bf;
-    --wt-guardian-100: #134e4a;
-    --wt-save-600: #4ade80;
-    --wt-save-100: #14532d;
-    --wt-warn-600: #fbbf24;
-    --wt-warn-100: #78350f;
-    --wt-alert-600: #f87171;
-    --wt-alert-100: #7f1d1d;
-  }
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
 body {

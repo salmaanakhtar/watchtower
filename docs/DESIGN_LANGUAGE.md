@@ -141,10 +141,13 @@ Evidence panel (collapsible, default open):
 
 ## 9. Implementation notes (how to ship this)
 
-- **Token layer:** CSS custom properties (light/dark), exposed as `tokens.css`. No hard-coded hex in components.
-- **Component library:** build on the design system; start with a small set (Section 6) and grow via usage, not theory.
-- **Design tokens file:** `tokens.css` + `tokens.d.ts` (typed theme) so designers and engineers share one source of truth.
-- **Figma/design tool:** optional; the CSS token file IS the source of truth in MVP.
+**Status: implemented (WT-7, 2026-08-23).**
+
+- **Token layer:** `styles/tokens.css` (CSS custom properties, light + dark via `prefers-color-scheme`), imported by `app/globals.css`. The typed source of truth is `lib/design-tokens.ts` (`LIGHT_TOKENS` / `DARK_TOKENS`, `SemanticTone`, confidence-tier variants); a parity unit test (`lib/design-tokens.test.ts`) fails the build if the CSS drifts. No hard-coded hex in components.
+- **Typography:** Inter (sans) + JetBrains Mono (mono) loaded via `next/font` in `app/layout.tsx`; wired through Tailwind's `--font-sans`/`--font-mono`. All money values use the `.money` class (tabular figures).
+- **Component library:** `components/ui/` — `BrandMark`, `Button` (`primary` / `secondary` / `ghost` / `danger` + `success` added by usage, plus `buttonClasses()` for links), `Badge` (semantic tones × solid/outline/dashed), `StatusChip`/`StatusDot` (watchlist lifecycle → green/amber/red with text labels), `Card`, `EmptyState`. Landing, analyzer result, watch CTA, waitlist, watchlist page, and confirmation screen are all built on these primitives.
+- **Not yet built:** Toast system (§6.9 — deferred until there's a caller; grow via usage, not theory).
+- **Figma/design tool:** none; the CSS token file IS the source of truth in MVP.
 - **Audit gate:** every screen shipped is checked against: WCAG AA contrast, tabular numbers on all money, color+label pairing, no ungrounded claims, calm motion.
 
 ---

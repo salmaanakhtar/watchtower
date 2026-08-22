@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import type { AnalysisResult } from "@/lib/analysis";
+import type { SemanticTone } from "@/lib/design-tokens";
 import { WatchButton } from "./watch-button";
+import { Badge } from "./ui/badge";
+import { Card } from "./ui/card";
 
 // Canonical obligation shape returned by the API (WT-4). Kept structural here
 // so the client stays decoupled from Prisma types.
@@ -31,12 +34,12 @@ const KIND_LABEL: Record<string, string> = {
   none: "No risk found",
 };
 
-const KIND_COLOR: Record<string, string> = {
-  price_increase: "bg-(--wt-alert-100) text-(--wt-alert-600)",
-  subscription: "bg-(--wt-warn-100) text-(--wt-warn-600)",
-  trial: "bg-(--wt-warn-100) text-(--wt-warn-600)",
-  cancellation: "bg-(--wt-save-100) text-(--wt-save-600)",
-  none: "bg-(--wt-ink-300)/30 text-(--wt-ink-500)",
+const KIND_TONE: Record<string, SemanticTone> = {
+  price_increase: "alert",
+  subscription: "warn",
+  trial: "warn",
+  cancellation: "save",
+  none: "neutral",
 };
 
 const CONFIDENCE_LABEL: Record<string, string> = {
@@ -44,6 +47,14 @@ const CONFIDENCE_LABEL: Record<string, string> = {
   conditional: "Watch item",
   hypothetical: "Possible",
 };
+
+// ConfidenceChip per DESIGN_LANGUAGE.md §6.5: solid (certain),
+// outline (conditional), dashed (hypothetical). Never a bare percentage.
+const CONFIDENCE_VARIANT = {
+  certain: "solid",
+  conditional: "outline",
+  hypothetical: "dashed",
+} as const;
 
 function formatCents(cents: number | null): string | null {
   if (cents === null) return null;
@@ -79,24 +90,18 @@ export function ResultCard({
   const facts = obligation?.facts?.length ? obligation.facts : result.facts;
 
   return (
-    <div
-      className="w-full max-w-2xl mx-auto rounded-xl bg-(--wt-paper-0) border border-(--wt-ink-300) shadow-sm overflow-hidden"
-      data-testid="result-card"
-    >
+    <Card hero className="mx-auto max-w-2xl overflow-hidden" testId="result-card">
       <div className="p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${KIND_COLOR[result.kind] ?? "bg-(--wt-ink-300)/30 text-(--wt-ink-500)"}`}
-            data-testid="kind-badge"
-          >
+          <Badge tone={KIND_TONE[result.kind] ?? "neutral"} testId="kind-badge">
             {KIND_LABEL[result.kind] ?? result.kind}
-          </span>
-          <span
-            className="rounded-full border border-(--wt-ink-300) px-3 py-1 text-xs font-medium text-(--wt-ink-500)"
-            data-testid="confidence-chip"
+          </Badge>
+          <Badge
+            variant={CONFIDENCE_VARIANT[result.confidence] ?? "outline"}
+            testId="confidence-chip"
           >
             {CONFIDENCE_LABEL[result.confidence]}
-          </span>
+          </Badge>
         </div>
 
         <h2 className="mt-4 text-xl font-semibold text-(--wt-ink-900)" data-testid="result-title">
@@ -179,6 +184,6 @@ export function ResultCard({
           </ul>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

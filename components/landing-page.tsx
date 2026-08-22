@@ -5,23 +5,8 @@ import { InputZone, type Phase } from "./input-zone";
 import { ResultCard, type CanonicalObligation } from "./result-card";
 import { WaitlistForm } from "./waitlist-form";
 import { useVariant } from "./variant-provider";
+import { BrandMark } from "./ui/brand-mark";
 import type { AnalysisResult } from "@/lib/analysis";
-
-function BrandMark() {
-  return (
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-(--wt-guardian-600) text-white">
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true">
-        <path
-          d="M12 4c-4 0-7 3-7 8v2l-1 3h16l-1-3v-2c0-5-3-8-7-8Z"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinejoin="round"
-        />
-        <circle cx="12" cy="13" r="1.6" fill="currentColor" />
-      </svg>
-    </span>
-  );
-}
 
 export function LandingPage() {
   const { variant, copy } = useVariant();

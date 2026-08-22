@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Badge } from "./ui/badge";
+import { Button, buttonClasses } from "./ui/button";
+import { EmptyState } from "./ui/empty-state";
+import { StatusChip } from "./ui/status-chip";
 
 export interface WatchlistItem {
   id: string;
@@ -23,22 +27,6 @@ export interface WatchlistItem {
     confidence: number | null;
   };
 }
-
-const STATUS_LABEL: Record<string, string> = {
-  open: "Open",
-  upcoming: "Upcoming",
-  due: "Due",
-  resolved: "Resolved",
-  dismissed: "Dismissed",
-};
-
-const STATUS_COLOR: Record<string, string> = {
-  open: "bg-(--wt-warn-100) text-(--wt-warn-600)",
-  upcoming: "bg-(--wt-warn-100) text-(--wt-warn-600)",
-  due: "bg-(--wt-alert-100) text-(--wt-alert-600)",
-  resolved: "bg-(--wt-save-100) text-(--wt-save-600)",
-  dismissed: "bg-(--wt-ink-300)/30 text-(--wt-ink-500)",
-};
 
 const KIND_LABEL: Record<string, string> = {
   subscription: "Subscription",
@@ -104,29 +92,22 @@ export function WatchlistView({
             {list.length === 1 ? "item" : "items"} being watched
           </p>
         </div>
-        <Link
-          href="/"
-          className="rounded-lg border border-(--wt-ink-300) px-3 py-1.5 text-sm font-medium text-(--wt-ink-700) transition-colors hover:border-(--wt-guardian-600) hover:text-(--wt-guardian-600)"
-          data-testid="analyze-more"
-        >
+        <Link href="/" className={buttonClasses("secondary")} data-testid="analyze-more">
           Analyze another document
         </Link>
       </header>
 
       {list.length === 0 ? (
-        <div
-          className="mt-10 rounded-xl border border-dashed border-(--wt-ink-300) bg-(--wt-paper-0) p-10 text-center"
-          data-testid="watchlist-empty"
-        >
-          <p className="text-lg font-semibold text-(--wt-ink-900)">
-            Nothing watched yet — upload your first bill.
-          </p>
-          <Link
-            href="/"
-            className="mt-4 inline-block rounded-lg bg-(--wt-guardian-600) px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-(--wt-guardian-700)"
-          >
-            Analyze a document
-          </Link>
+        <div className="mt-10">
+          <EmptyState
+            title="Nothing watched yet — upload your first bill."
+            action={
+              <Link href="/" className={buttonClasses()}>
+                Analyze a document
+              </Link>
+            }
+            testId="watchlist-empty"
+          />
         </div>
       ) : (
         <ul className="mt-8 space-y-4" data-testid="watchlist">
@@ -145,19 +126,14 @@ export function WatchlistView({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_COLOR[w.status] ?? "bg-(--wt-ink-300)/30 text-(--wt-ink-500)"}`}
-                        data-testid="status-chip"
-                      >
-                        {STATUS_LABEL[w.status] ?? w.status}
-                      </span>
-                      <span className="rounded-full border border-(--wt-ink-300) px-3 py-1 text-xs font-medium text-(--wt-ink-500)">
+                      <StatusChip status={w.status} testId="status-chip" />
+                      <Badge tone="neutral" variant="outline">
                         {KIND_LABEL[w.obligation.kind] ?? w.obligation.kind}
-                      </span>
+                      </Badge>
                       {w.obligation.verification && (
-                        <span className="rounded-full border border-dashed border-(--wt-ink-300) px-3 py-1 text-xs font-medium text-(--wt-ink-500)">
+                        <Badge tone="neutral" variant="dashed">
                           {w.obligation.verification}
-                        </span>
+                        </Badge>
                       )}
                     </div>
                     <h3 className="mt-3 text-lg font-semibold text-(--wt-ink-900)">
@@ -196,24 +172,26 @@ export function WatchlistView({
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <button
+                    <Button
                       type="button"
+                      variant="success"
                       disabled={busyId === w.id}
                       onClick={() => update(w.id, { status: "resolved" })}
-                      className="rounded-lg bg-(--wt-save-600) px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-(--wt-save-600)/80 disabled:opacity-50"
+                      className="px-3 py-1.5 text-xs"
                       data-testid="resolve-button"
                     >
                       Mark resolved
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="secondary"
                       disabled={busyId === w.id}
                       onClick={() => update(w.id, { status: "dismissed" })}
-                      className="rounded-lg border border-(--wt-ink-300) px-3 py-1.5 text-xs font-medium text-(--wt-ink-700) transition-colors hover:border-(--wt-alert-600) hover:text-(--wt-alert-600) disabled:opacity-50"
+                      className="px-3 py-1.5 text-xs font-medium"
                       data-testid="dismiss-button"
                     >
                       Dismiss
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </li>

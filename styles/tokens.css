@@ -1,0 +1,67 @@
+/* Watchtower design tokens — CSS layer (DESIGN_LANGUAGE.md §9).
+   Mirrored from lib/design-tokens.ts (the typed source of truth);
+   a unit test enforces parity. No hard-coded hex in components. */
+
+:root {
+  /* Core palette */
+  --wt-ink-900: #0f172a;
+  --wt-ink-700: #334155;
+  --wt-ink-500: #64748b;
+  --wt-ink-300: #cbd5e1;
+  --wt-paper-50: #f8fafc;
+  --wt-paper-0: #ffffff;
+
+  /* Brand */
+  --wt-guardian-600: #0f766e;
+  --wt-guardian-700: #0d5f59;
+  --wt-guardian-100: #ccfbf1;
+
+  /* Semantic: green = protected, amber = watch, red = act now */
+  --wt-save-600: #15803d;
+  --wt-save-100: #dcfce7;
+  --wt-warn-600: #b45309;
+  --wt-warn-100: #fef3c7;
+  --wt-alert-600: #b91c1c;
+  --wt-alert-100: #fee2e2;
+  --wt-neutral-500: #64748b;
+
+  /* Spacing scale (8px system) */
+  --wt-space-1: 4px;
+  --wt-space-2: 8px;
+  --wt-space-3: 12px;
+  --wt-space-4: 16px;
+  --wt-space-6: 24px;
+  --wt-space-8: 32px;
+  --wt-space-12: 48px;
+  --wt-space-16: 64px;
+
+  /* Radius */
+  --wt-radius-input: 6px;
+  --wt-radius-card: 8px;
+  --wt-radius-hero: 12px;
+  --wt-radius-pill: 999px;
+
+  /* Motion: calm authority — transform/opacity only */
+  --wt-duration-fast: 150ms;
+  --wt-duration-base: 250ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --wt-ink-900: #f8fafc;
+    --wt-ink-700: #cbd5e1;
+    --wt-ink-500: #94a3b8;
+    --wt-ink-300: #475569;
+    --wt-paper-50: #0f172a;
+    --wt-paper-0: #1e293b;
+    --wt-guardian-600: #14b8a6;
+    --wt-guardian-700: #2dd4bf;
+    --wt-guardian-100: #134e4a;
+    --wt-save-600: #4ade80;
+    --wt-save-100: #14532d;
+    --wt-warn-600: #fbbf24;
+    --wt-warn-100: #78350f;
+    --wt-alert-600: #f87171;
+    --wt-alert-100: #7f1d1d;
+  }
+}

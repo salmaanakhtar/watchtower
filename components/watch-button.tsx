@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "./ui/button";
 
 /**
  * The single conversion CTA (DESIGN_LANGUAGE §6.6). "Watch this for me" creates
@@ -124,14 +125,13 @@ export function WatchButton({ obligationId }: { obligationId: string }) {
             data-testid="watch-email-input"
             aria-label="Email address"
           />
-          <button
+          <Button
             type="submit"
             disabled={sendingLink}
-            className="rounded-lg bg-(--wt-guardian-600) px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-(--wt-guardian-700) disabled:opacity-50"
             data-testid="watch-email-submit"
           >
             {sendingLink ? "Sending…" : "Email me a link"}
-          </button>
+          </Button>
         </div>
         {error && (
           <p className="mt-2 text-sm text-(--wt-alert-600)" data-testid="watch-error">
@@ -144,15 +144,15 @@ export function WatchButton({ obligationId }: { obligationId: string }) {
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <button
+      <Button
         type="button"
         onClick={startWatch}
         disabled={mode === "sending"}
-        className="w-full rounded-lg bg-(--wt-guardian-600) px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-(--wt-guardian-700) disabled:opacity-50"
+        className="w-full"
         data-testid="watch-button"
       >
         Watch this for me
-      </button>
+      </Button>
       {error && (
         <p className="text-sm text-(--wt-alert-600)" data-testid="watch-error">
           {error}
