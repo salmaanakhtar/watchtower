@@ -74,3 +74,90 @@ test.describe("Watch flow (WT-5)", () => {
     await expect(page.getByTestId("watchlist-empty")).toBeVisible({ timeout: 15_000 });
   });
 });
+
+test.describe("WT-6 email + notifications", () => {
+  test("magic-link email round trip via stub sender", async ({ page, context }) => {
+    await context.request.post("http://127.0.0.1:3100/api/admin/test-email-stub", {
+      data: { enabled: true },
+    });
+    try {
+      await page.goto("/");
+      await page.getByTestId("paste-input").fill(
+        "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.",
+      );
+      await page.getByTestId("analyze-button").click();
+      await expect(page.getByTestId("result-card")).toBeVisible({ timeout: 15_000 });
+
+      await page.getByTestId("watch-button").click();
+      await expect(page.getByTestId("watch-email-form")).toBeVisible({ timeout: 15_000 });
+
+      const email = `wt6-${Date.now()}@example.com`;
+      await page.getByTestId("watch-email-input").fill(email);
+      await page.getByTestId("watch-email-submit").click();
+
+      // The email "arrives": the stub captured it. Fetch the one for our address.
+      await expect(page.getByTestId("watch-email-sent")).toBeVisible({ timeout: 15_000 });
+      const captured = await context.request.get("http://127.0.0.1:3100/api/admin/test-email-stub");
+      const { emails } = await captured.json();
+      const mine = (emails as { to: string; text: string }[]).find((e) => e.to === email);
+      expect(mine).toBeTruthy();
+      const verifyPath = mine!.text.match(/\/api\/auth\/verify\/([^\s]+)/)?.[0];
+      expect(verifyPath).toBeTruthy();
+
+      // Sign in through the emailed link.
+      await context.request.get(`http://127.0.0.1:3100${verifyPath}`, { maxRedirects: 0 });
+      const resp = await context.request.get("http://127.0.0.1:3100/api/auth/me");
+      const me = await resp.json();
+      expect(me.user.email).toBe(email);
+    } finally {
+      await context.request.post("http://127.0.0.1:3100/api/admin/test-email-stub", {
+        data: { enabled: false },
+      });
+    }
+  });
+
+  test("one-click unwatch link dismisses the item", async ({ page, context }) => {
+    await context.addCookies([
+      { name: "wt_variant", value: "A", url: "http://127.0.0.1:3100" },
+    ]);
+    await page.goto("/");
+    await page.getByTestId("paste-input").fill(
+      "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.",
+    );
+    await page.getByTestId("analyze-button").click();
+    await expect(page.getByTestId("result-card")).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId("watch-button").click();
+    await expect(page.getByTestId("watch-email-form")).toBeVisible({ timeout: 15_000 });
+    const email = `wt6-un-${Date.now()}@example.com`;
+    await page.getByTestId("watch-email-input").fill(email);
+    await page.getByTestId("watch-email-submit").click();
+    const link = page.getByTestId("watch-email-sent").locator("a");
+    await link.click();
+    await expect(page).toHaveURL(/\/watch\?obligation=/, { timeout: 15_000 });
+
+    await page.getByTestId("view-watchlist").click();
+    await expect(page.getByTestId("watchlist")).toBeVisible({ timeout: 15_000 });
+    const item = page.getByTestId("watchlist-item");
+    await expect(item).toContainText("Adobe");
+
+    // The notification sweep is driven by the real deadline (Oct 14, weeks
+    // out), so mint the unwatch link via the admin helper on this item.
+    const watchItemId = await page
+      .getByTestId("watchlist-item")
+      .getAttribute("data-item-id");
+    expect(watchItemId).toBeTruthy();
+    const mint = await context.request.post("http://127.0.0.1:3100/api/admin/unwatch-token", {
+      data: { watchItemId },
+    });
+    const { url } = await mint.json();
+    expect(url).toContain("/api/unwatch/");
+
+    await page.goto(url);
+    await expect(page).toHaveURL(/\/api\/unwatch\//, { timeout: 15_000 });
+    await expect(page.locator("body")).toContainText("Stopped watching", { timeout: 15_000 });
+
+    // The item is dismissed in the watchlist now.
+    await page.goto("/watchlist");
+    await expect(page.getByTestId("status-chip")).toContainText("Dismissed", { timeout: 15_000 });
+  });
+});

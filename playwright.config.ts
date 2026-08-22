@@ -15,5 +15,9 @@ export default defineConfig({
     url: "http://127.0.0.1:3100",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      ...process.env,
+      NOTIFY_STUB_SENDER: "1",
+    },
   },
 });

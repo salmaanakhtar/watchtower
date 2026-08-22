@@ -122,3 +122,12 @@
 **Why:** The "Saturday-afternoon test" â€” a one-shot analyzer dies without a reason to return. A watchlist with deadlines is the minimal persistence that converts analysis into a recurring product (DECISIONS 2026-08-21 "Phase 1 MVP").
 
 **Revisit when:** WT-6 ships real email delivery (swap dev link for transactional mail), and WT-8 hardens session storage (rotate AUTH_SECRET, add rate limiting on /api/auth/request).
+
+---
+
+## 2026-08-22 — WT-6: Transactional email (Resend) + deadline notifications shipped
+**Decision:** Email delivery via Resend (`RESEND_API_KEY` + `EMAIL_FROM` envs; plain-text-first with a single HTML card, DESIGN_LANGUAGE §8). Magic-link emails now send for real in production; dev keeps the token-in-response path (and an e2e-only in-memory stub under `NOTIFY_STUB_SENDER=1`). A startup + hourly in-process sweep (`instrumentation.ts` ? `lib/sweep-scheduler.ts` ? `lib/notify-sweep.ts`, manually triggerable at `GET /api/notify/sweep`) selects watch items due within 7/3/1 days and sends one email per item per deadline, deduped via the `notifiedAt`/`Event(type=notified)` guard inside a transaction (idempotent under concurrent sweeps). Only `verification=certain` + `confidence >= 0.9` items alert (PHASE0_1_PLAN §5.4). Emails carry a one-click signed unwatch link (`GET /api/unwatch/[token]`, HMAC like the magic-link tokens, 1-year TTL) that dismisses the item + logs an Event. Until WT-3 ships ISO dates, deadlines are parsed from the legacy human labels ("October 14", anchored to the next occurrence) via `parseDeadline`.
+
+**Why:** Real email was the #1 prerequisite for the watchlist to exist (production sign-in was blocked). Resend is a single HTTP call, no SMTP; the sweep is idempotent and process-local so it works on the single-instance VPS without a job queue; the alert gate keeps emails transactional and honest.
+
+**Revisit when:** WT-3 lands (replace deadline-label parsing with `Obligation.dueDate`/ISO dates), WT-8 hardens the auth request rate limiter (currently a simple 1/min event check), or multi-instance hosting needs a durable job lock.

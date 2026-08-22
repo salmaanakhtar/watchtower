@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createMagicToken } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isProdEmailEnabled, magicLinkEmail, sendEmail } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 
@@ -10,10 +11,10 @@ const bodySchema = z.object({
 });
 
 /**
- * Magic-link request (WT-5). Creates a signed one-time token and delivers it:
- * - When AUTH_EMAIL_FROM / AUTH_EMAIL_FROM_NAME are set (production): the
- *   route would hand off to an email provider (Resend/Postmark). Email
- *   delivery is not wired yet — WT-6 owns real sending.
+ * Magic-link request (WT-5/WT-6). Creates a signed one-time token and delivers
+ * it:
+ * - When RESEND_API_KEY + EMAIL_FROM are set (production): sends a real
+ *   transactional email via the provider and returns delivered:true.
  * - Otherwise (dev): returns the magic link in the response body so local and
  *   e2e flows work without an SMTP server. Never enables this in production.
  */
@@ -44,10 +45,38 @@ export async function POST(req: Request) {
     create: { email, anonymous: false },
   });
 
-  if (process.env.AUTH_EMAIL_FROM) {
-    // Real email handoff lands in WT-6; for now just log the link.
-    console.log(`[wt5] magic link for ${email}: /auth/verify?token=${token}`);
-    return NextResponse.json({ ok: true, delivered: false }, { status: 201 });
+  // Rate-limit: at most one magic link per email per minute (WT-8 hardening
+  // will replace this with a durable limiter).
+  const cooldownMs = 60_000;
+  const last = await db.event.findFirst({
+    where: { type: "magic_requested" },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  if (last && Date.now() - last.createdAt.getTime() < cooldownMs) {
+    return NextResponse.json(
+      { error: "A sign-in link was already sent recently. Check your inbox." },
+      { status: 429 },
+    );
+  }
+
+  if (isProdEmailEnabled()) {
+    const result = await sendEmail(magicLinkEmail(email, token));
+    // Rate-limit bookkeeping (best-effort, never breaks the flow).
+    await db.event
+      .create({ data: { type: "magic_requested", detail: email } })
+      .catch(() => {});
+    return NextResponse.json(
+      { ok: true, delivered: result.delivered },
+      { status: result.delivered ? 201 : 502 },
+    );
+  }
+
+  // e2e stub (NOTIFY_STUB_SENDER=1, dev only): deliver the "email" to the
+  // in-memory stub AND keep the dev link so the UI flow is unchanged.
+  if (process.env.NOTIFY_STUB_SENDER === "1") {
+    await sendEmail(magicLinkEmail(email, token));
+    return NextResponse.json({ ok: true, delivered: true, token }, { status: 201 });
   }
 
   // Dev-only: return the link so the flow completes without an email server.

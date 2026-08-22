@@ -140,6 +140,7 @@ export function WatchlistView({
                 key={w.id}
                 className="rounded-xl border border-(--wt-ink-300) bg-(--wt-paper-0) p-5"
                 data-testid="watchlist-item"
+                data-item-id={w.id}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
