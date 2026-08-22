@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+﻿import { test, expect } from "@playwright/test";
 
 test.describe("Watch flow (WT-5)", () => {
   test("analyze -> watch -> sign in -> watchlist shows the item", async ({ page, context }) => {
@@ -11,6 +11,7 @@ test.describe("Watch flow (WT-5)", () => {
     await page.getByTestId("paste-input").fill(
       "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.",
     );
+    await page.getByTestId("consent-input").check();
     await page.getByTestId("analyze-button").click();
     await expect(page.getByTestId("result-card")).toBeVisible({ timeout: 15_000 });
 
@@ -85,7 +86,8 @@ test.describe("WT-6 email + notifications", () => {
       await page.getByTestId("paste-input").fill(
         "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.",
       );
-      await page.getByTestId("analyze-button").click();
+      await page.getByTestId("consent-input").check();
+    await page.getByTestId("analyze-button").click();
       await expect(page.getByTestId("result-card")).toBeVisible({ timeout: 15_000 });
 
       await page.getByTestId("watch-button").click();
@@ -124,6 +126,7 @@ test.describe("WT-6 email + notifications", () => {
     await page.getByTestId("paste-input").fill(
       "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.",
     );
+    await page.getByTestId("consent-input").check();
     await page.getByTestId("analyze-button").click();
     await expect(page.getByTestId("result-card")).toBeVisible({ timeout: 15_000 });
     await page.getByTestId("watch-button").click();
@@ -161,3 +164,5 @@ test.describe("WT-6 email + notifications", () => {
     await expect(page.getByTestId("status-chip")).toContainText("Dismissed", { timeout: 15_000 });
   });
 });
+
+

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { parseSessionToken } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { decryptField } from "@/lib/crypto";
 import { WatchlistView, type WatchlistItem } from "@/components/watchlist";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ export default async function WatchlistPage() {
     select: { id: true, email: true },
   });
   if (!user) redirect("/?auth=required");
+  const displayEmail = decryptField(user.email);
 
   const watchItems = await db.watchItem.findMany({
     where: { userId },
@@ -94,5 +96,5 @@ export default async function WatchlistPage() {
     },
   }));
 
-  return <WatchlistView user={user} items={items} />;
+  return <WatchlistView user={{ id: user.id, email: displayEmail ?? "" }} items={items} />;
 }

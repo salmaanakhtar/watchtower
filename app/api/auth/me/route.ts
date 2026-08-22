@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { clearSessionCookie, parseSessionToken } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { decryptField } from "@/lib/crypto";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ export async function GET(req: Request) {
   }
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  return NextResponse.json({ user: { id: user.id, email: user.email } });
+  return NextResponse.json({ user: { id: user.id, email: decryptField(user.email) } });
 }
 
 export async function POST() {

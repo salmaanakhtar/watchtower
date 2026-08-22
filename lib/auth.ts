@@ -85,11 +85,18 @@ export function parseSessionToken(token: string | undefined | null): string | nu
   return typeof userId === "string" && userId.length > 0 ? userId : null;
 }
 
-/** Cookie string for the session token (HttpOnly, SameSite=Lax, 30 days). */
+/** Cookie string for the session token (HttpOnly, SameSite=Lax, 30 days, Secure on https). */
 export function sessionCookieValue(token: string): string {
-  return `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`;
+  const secure = isHttps() ? "; Secure" : "";
+  return `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}${secure}`;
 }
 
 export function clearSessionCookie(): string {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  const secure = isHttps() ? "; Secure" : "";
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
+}
+
+function isHttps(): boolean {
+  const origin = process.env.APP_ORIGIN ?? "";
+  return origin.startsWith("https://");
 }

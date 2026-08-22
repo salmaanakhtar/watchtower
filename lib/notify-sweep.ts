@@ -16,6 +16,7 @@
 // at most 3 emails: 7d → 3d → 1d.
 
 import { db } from "@/lib/db";
+import { decryptField } from "@/lib/crypto";
 import { sendEmail, createUnwatchToken, deadlineEmail, parseDeadline } from "@/lib/notifications";
 
 /** Notify at 7, 3, and 1 day(s) before the deadline. */
@@ -122,7 +123,8 @@ export async function selectCandidates(now: Date = new Date()): Promise<Candidat
 
     // Alert gate: certain + confidence ≥ 0.9 (PHASE0_1_PLAN §5.4).
     if (o.verification !== "certain" || (o.confidence ?? 0) < 0.9) continue;
-    if (!o.user?.email) continue;
+    const email = decryptField(o.user?.email);
+    if (!email) continue;
 
     candidates.push({
       watchItemId: r.id,
@@ -141,7 +143,7 @@ export async function selectCandidates(now: Date = new Date()): Promise<Candidat
       dueDate: o.dueDate,
       watchDeadline: r.deadline,
       notifiedAt: r.notifiedAt,
-      userEmail: o.user.email,
+      userEmail: email,
       submissionDeadlineLabel: label,
     });
   }

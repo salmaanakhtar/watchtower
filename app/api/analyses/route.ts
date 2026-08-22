@@ -3,6 +3,8 @@ import { z } from "zod";
 import { analyzeText } from "@/lib/analysis";
 import { db } from "@/lib/db";
 import { toCanonical } from "@/lib/obligations";
+import { encryptField } from "@/lib/crypto";
+import { ipRateExceeded } from "@/lib/rate-limit";
 import {
   contentHash,
   decodeUpload,
@@ -21,6 +23,7 @@ const bodySchema = z
     contentType: z.string().optional(),
     filename: z.string().max(255).optional(),
     base64: z.string().max(MAX_UPLOAD_BYTES * 2 + 8).optional(),
+    consent: z.boolean().optional().default(false),
   })
   .superRefine((val, ctx) => {
     if (val.kind === "file" && (!val.base64 || !val.contentType)) {
@@ -32,10 +35,24 @@ const bodySchema = z
     }
   });
 
+function clientIp(req: Request): string | null {
+  const fwd = req.headers.get("x-forwarded-for");
+  if (fwd) return fwd.split(",")[0]?.trim() ?? null;
+  return req.headers.get("x-real-ip");
+}
+
 // Anonymous analyzer entrypoint (WT-2). Paste → analyze immediately.
 // Uploads: text-ish types are decoded deterministically and analyzed;
 // PDFs/images are acknowledged as queued (extraction lands in Phase 1).
 export async function POST(req: Request) {
+  // WT-8: anonymous per-IP quota (in-memory; resets on restart).
+  if (ipRateExceeded(clientIp(req))) {
+    return NextResponse.json(
+      { error: "Too many analyses from this connection. Try again later." },
+      { status: 429 },
+    );
+  }
+
   let json: unknown;
   try {
     json = await req.json();
@@ -51,7 +68,16 @@ export async function POST(req: Request) {
     );
   }
 
+  // WT-8: consent is required before any document content is stored.
+  if (parsed.data.consent !== true) {
+    return NextResponse.json(
+      { error: "You must accept the processing notice to analyze a document." },
+      { status: 403 },
+    );
+  }
+
   const { content, variant, kind, contentType, filename } = parsed.data;
+  const consentAt = new Date();
 
   if (kind === "file") {
     const decoded = decodeUpload(parsed.data.base64!, contentType!, filename ?? "upload.bin");
@@ -73,9 +99,11 @@ export async function POST(req: Request) {
           filename: decoded.filename,
           sizeBytes: decoded.bytes.length,
           contentHash: contentHash(decoded.filename + ":" + decoded.bytes.length),
-          content: `[File uploaded: ${decoded.filename} (${decoded.contentType})] Manual review in progress.`,
-          rawBytes: parsed.data.base64,
-          dataUrl,
+          content: encryptField(`[File uploaded: ${decoded.filename} (${decoded.contentType})] Manual review in progress.`) ?? "",
+          rawBytes: encryptField(parsed.data.base64) ?? null,
+          dataUrl: encryptField(dataUrl) ?? null,
+          consent: true,
+          consentAt,
           status: "queued",
         },
       });
@@ -104,10 +132,12 @@ export async function POST(req: Request) {
         filename: decoded.filename,
         sizeBytes: decoded.bytes.length,
         contentHash: contentHash(decoded.decodedText),
-        content: decoded.decodedText.slice(0, MAX_DECODED_CHARS),
+        content: encryptField(decoded.decodedText.slice(0, MAX_DECODED_CHARS)) ?? "",
+        consent: true,
+        consentAt,
         status: "done",
-        result: JSON.stringify(result),
-        analysis: JSON.stringify({ title: result.title, exposure: result.exposureLabel }),
+        result: encryptField(JSON.stringify(result)) ?? null,
+        analysis: encryptField(JSON.stringify({ title: result.title, exposure: result.exposureLabel })) ?? null,
       },
     });
     const canonical = await persistCanonical(submission.id, result, {
@@ -127,10 +157,12 @@ export async function POST(req: Request) {
       kind,
       contentType: contentType ?? "text/plain",
       contentHash: contentHash(content),
-      content,
+      content: encryptField(content) ?? "",
+      consent: true,
+      consentAt,
       status: "done",
-      result: JSON.stringify(result),
-      analysis: JSON.stringify({ title: result.title, exposure: result.exposureLabel }),
+      result: encryptField(JSON.stringify(result)) ?? null,
+      analysis: encryptField(JSON.stringify({ title: result.title, exposure: result.exposureLabel })) ?? null,
     },
   });
   const canonical = await persistCanonical(submission.id, result, {
@@ -172,7 +204,7 @@ async function persistCanonical(
         source: document.source,
         filename: document.filename,
         contentType: document.contentType,
-        extractedText: document.extractedText,
+        extractedText: encryptField(document.extractedText) ?? "",
         extractionMethod: "raw",
         contentHash: document.contentHash,
         submissionId,

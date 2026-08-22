@@ -32,6 +32,7 @@ test.describe("Paste flow", () => {
     const sample =
       "Your Adobe Creative Cloud plan renews on October 14 at $19.99/month. To cancel, do it before the renewal.";
     await page.getByTestId("paste-input").fill(sample);
+    await page.getByTestId("consent-input").check();
     await page.getByTestId("analyze-button").click();
 
     await expect(page.getByTestId("result-card")).toBeVisible({ timeout: 15_000 });
@@ -74,6 +75,7 @@ test.describe("Waitlist", () => {
     await page.getByTestId("paste-input").fill(
       "Dear customer, thank you for your purchase of a lawnmower. It will arrive within 5 business days.",
     );
+    await page.getByTestId("consent-input").check();
     await page.getByTestId("analyze-button").click();
     await expect(page.getByTestId("waitlist-form")).toBeVisible({ timeout: 15_000 });
 
@@ -87,6 +89,7 @@ test.describe("Waitlist", () => {
     await page.getByTestId("paste-input").fill(
       "Dear customer, thank you for your purchase. It will arrive within 5 business days.",
     );
+    await page.getByTestId("consent-input").check();
     await page.getByTestId("analyze-button").click();
     await expect(page.getByTestId("waitlist-form")).toBeVisible({ timeout: 15_000 });
     await page.getByTestId("waitlist-email").fill("not-an-email");
@@ -102,6 +105,7 @@ test.describe("Upload flow", () => {
     ]);
     await page.goto("/");
     await page.getByTestId("tab-file").click();
+    await page.getByTestId("consent-input").check();
     await page.getByTestId("file-input").setInputFiles({
       name: "renewal.txt",
       mimeType: "text/plain",
@@ -119,6 +123,7 @@ test.describe("Upload flow", () => {
     ]);
     await page.goto("/");
     await page.getByTestId("tab-file").click();
+    await page.getByTestId("consent-input").check();
     await page.getByTestId("file-input").setInputFiles({
       name: "bill.pdf",
       mimeType: "application/pdf",

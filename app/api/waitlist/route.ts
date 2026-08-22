@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { encryptField } from "@/lib/crypto";
 
 export const runtime = "nodejs";
 
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
 
   const email = parsed.data.email.toLowerCase();
   try {
-    await db.waitlist.create({ data: { email, source: parsed.data.source } });
+    await db.waitlist.create({ data: { email: encryptField(email) ?? "", source: parsed.data.source } });
   } catch {
     // unique constraint — treat as success (already on list)
   }

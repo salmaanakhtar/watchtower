@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createMagicToken } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { encryptField, hashForLookup } from "@/lib/crypto";
+import { audit, requestIp } from "@/lib/audit";
+import {
+  magicLinkOnCooldown,
+  magicLinkRateExceeded,
+  recordMagicLink,
+} from "@/lib/rate-limit";
 import { isProdEmailEnabled, magicLinkEmail, sendEmail } from "@/lib/notifications";
 
 export const runtime = "nodejs";
@@ -35,27 +42,34 @@ export async function POST(req: Request) {
   }
 
   const email = parsed.data.email.toLowerCase();
+  const emailHash = hashForLookup(email);
   const token = createMagicToken(email);
 
-  // Ensure the user row exists (upsert by email) so /auth/verify can link
-  // anonymous analyses to the same account later.
+  // Ensure the user row exists (upsert by email hash — the stored email is
+  // encrypted at rest, so lookups go through the deterministic hash).
   await db.user.upsert({
-    where: { email },
-    update: { anonymous: false },
-    create: { email, anonymous: false },
+    where: { emailHash },
+    update: { anonymous: false, email: encryptField(email) },
+    create: { emailHash, email: encryptField(email), anonymous: false },
   });
 
-  // Rate-limit: at most one magic link per email per minute (WT-8 hardening
-  // will replace this with a durable limiter).
-  const cooldownMs = 60_000;
-  const last = await db.event.findFirst({
-    where: { type: "magic_requested" },
-    orderBy: { createdAt: "desc" },
-    select: { createdAt: true },
-  });
-  if (last && Date.now() - last.createdAt.getTime() < cooldownMs) {
+  // WT-8 rate limiting: at most one magic link per email per minute, and a
+  // hard hourly cap. Keyed by email hash, not the plaintext.
+  if (await magicLinkOnCooldown(email)) {
     return NextResponse.json(
       { error: "A sign-in link was already sent recently. Check your inbox." },
+      { status: 429 },
+    );
+  }
+  if (await magicLinkRateExceeded(email)) {
+    await audit({
+      actor: `email:${emailHash}`,
+      action: "auth_request",
+      detail: "hourly cap exceeded",
+      ip: requestIp(req),
+    });
+    return NextResponse.json(
+      { error: "Too many sign-in attempts for this email. Try again later." },
       { status: 429 },
     );
   }
@@ -63,9 +77,7 @@ export async function POST(req: Request) {
   if (isProdEmailEnabled()) {
     const result = await sendEmail(magicLinkEmail(email, token));
     // Rate-limit bookkeeping (best-effort, never breaks the flow).
-    await db.event
-      .create({ data: { type: "magic_requested", detail: email } })
-      .catch(() => {});
+    await recordMagicLink(email);
     return NextResponse.json(
       { ok: true, delivered: result.delivered },
       { status: result.delivered ? 201 : 502 },
@@ -76,9 +88,11 @@ export async function POST(req: Request) {
   // in-memory stub AND keep the dev link so the UI flow is unchanged.
   if (process.env.NOTIFY_STUB_SENDER === "1") {
     await sendEmail(magicLinkEmail(email, token));
+    await recordMagicLink(email);
     return NextResponse.json({ ok: true, delivered: true, token }, { status: 201 });
   }
 
   // Dev-only: return the link so the flow completes without an email server.
+  await recordMagicLink(email);
   return NextResponse.json({ ok: true, delivered: true, token }, { status: 201 });
 }

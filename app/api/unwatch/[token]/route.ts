@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { parseUnwatchToken } from "@/lib/notifications";
 import { db } from "@/lib/db";
+import { audit, requestIp } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -42,6 +43,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
       type: "dismissed",
       detail: "one-click unsubscribe",
     },
+  });
+  await audit({
+    actor: watchItem.userId ? `user:${watchItem.userId}` : "anonymous",
+    action: "unwatch",
+    target: watchItemId,
+    detail: `obligation=${watchItem.obligationId}`,
+    ip: requestIp(req),
   });
 
   return html(

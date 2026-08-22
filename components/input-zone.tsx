@@ -35,6 +35,7 @@ export function InputZone({
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileMessage, setFileMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [consent, setConsent] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function submit(payload: Record<string, unknown>) {
@@ -44,7 +45,7 @@ export function InputZone({
       const res = await fetch("/api/analyses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, consent }),
       });
       const json = (await res.json()) as AnalyzeResponse;
       if (!res.ok) throw new Error(json?.error ?? "Analysis failed");
@@ -71,10 +72,21 @@ export function InputZone({
       onPhase("error");
       return;
     }
+    if (!consent) {
+      setError("Please accept the processing notice before analyzing.");
+      onPhase("error");
+      return;
+    }
     void submit({ content: text, variant, kind: "paste" });
   }
 
   function handleFile(file: File) {
+    if (!consent) {
+      setFileName(file.name);
+      setError("Please accept the processing notice before uploading.");
+      onPhase("error");
+      return;
+    }
     if (file.size > MAX_UPLOAD_BYTES) {
       setFileName(file.name);
       setError("That file is too large — max 10MB.");
@@ -182,6 +194,23 @@ export function InputZone({
                 Try an example
               </button>
             </div>
+            <label className="mt-4 flex items-start gap-2 text-xs text-(--wt-ink-500)" data-testid="consent-check">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 accent-(--wt-guardian-600)"
+                data-testid="consent-input"
+              />
+              <span>
+                I understand Watchtower will read and process this document to find
+                risks and deadlines. Read the{" "}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                  privacy notice
+                </a>
+                .
+              </span>
+            </label>
             {error && (
               <p className="mt-3 text-sm text-(--wt-alert-600)" data-testid="error-message">
                 {error}
@@ -240,6 +269,23 @@ export function InputZone({
                 {error}
               </p>
             )}
+            <label className="mt-4 flex items-start gap-2 text-xs text-(--wt-ink-500)" data-testid="consent-check-file">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 accent-(--wt-guardian-600)"
+                data-testid="consent-input"
+              />
+              <span>
+                I understand Watchtower will read and process this document to find
+                risks and deadlines. Read the{" "}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                  privacy notice
+                </a>
+                .
+              </span>
+            </label>
           </div>
         )}
       </div>

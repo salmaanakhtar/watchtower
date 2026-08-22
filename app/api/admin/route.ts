@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { adminAuthorized } from "@/lib/admin";
+import { decryptField } from "@/lib/crypto";
+import { audit, requestIp } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   if (!adminAuthorized(req)) {
+    await audit({ actor: "admin", action: "admin_denied", ip: requestIp(req) });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  await audit({ actor: "admin", action: "admin_authorized", ip: requestIp(req) });
   const [submissions, waitlist, summary] = await Promise.all([
     db.submission.findMany({
       orderBy: { createdAt: "desc" },
@@ -34,5 +38,13 @@ export async function GET(req: Request) {
       where: { category: { not: null } },
     }),
   ]);
-  return NextResponse.json({ submissions, waitlist, summary });
+  return NextResponse.json({
+    submissions: submissions.map((s) => ({
+      ...s,
+      rawBytes: decryptField(s.rawBytes),
+      dataUrl: decryptField(s.dataUrl),
+    })),
+    waitlist: waitlist.map((w) => ({ ...w, email: decryptField(w.email) })),
+    summary,
+  });
 }

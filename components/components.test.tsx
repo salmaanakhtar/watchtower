@@ -74,12 +74,15 @@ describe("InputZone", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<InputZoneHarness onResult={onResult} />);
     await user.type(screen.getByTestId("paste-input"), "renews at $19.99/month");
+    await user.click(screen.getByTestId("consent-input"));
     await user.click(screen.getByTestId("analyze-button"));
     await screen.findByTestId("processing");
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/analyses",
       expect.objectContaining({ method: "POST" }),
     );
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body);
+    expect(body.consent).toBe(true);
     resolveFetch!({
       ok: true,
       json: async () => ({
@@ -120,6 +123,7 @@ describe("InputZone", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<InputZoneHarness onResult={onResult} />);
     await user.click(screen.getByTestId("tab-file"));
+    await user.click(screen.getByTestId("consent-input"));
 
     const file = new File(["fake pdf"], "bill.pdf", { type: "application/pdf" });
     await user.upload(screen.getByTestId("file-input"), file);
@@ -135,6 +139,7 @@ describe("InputZone", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<InputZoneHarness onResult={() => {}} />);
     await user.click(screen.getByTestId("tab-file"));
+    await user.click(screen.getByTestId("consent-input"));
 
     const big = new File([new ArrayBuffer(10 * 1024 * 1024 + 1)], "big.txt", {
       type: "text/plain",

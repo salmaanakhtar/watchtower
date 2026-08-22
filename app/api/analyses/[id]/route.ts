@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { decryptField } from "@/lib/crypto";
 
 export const runtime = "nodejs";
 
@@ -28,7 +29,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   let result: unknown = null;
   if (submission.result) {
     try {
-      result = JSON.parse(submission.result);
+      result = JSON.parse(decryptField(submission.result) ?? "");
     } catch {
       result = null;
     }

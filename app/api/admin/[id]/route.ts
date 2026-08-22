@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { adminAuthorized } from "@/lib/admin";
+import { audit, requestIp } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,7 @@ const bodySchema = z.object({
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   if (!adminAuthorized(req)) {
+    await audit({ actor: "admin", action: "admin_denied", ip: requestIp(req) });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = paramsSchema.parse(await ctx.params);
@@ -30,6 +32,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const updated = await db.submission.update({
     where: { id },
     data,
+  });
+  await audit({
+    actor: "admin",
+    action: "admin_review",
+    target: id,
+    detail: `status=${updated.status} category=${updated.category ?? "none"}`,
+    ip: requestIp(req),
   });
   return NextResponse.json({ updated });
 }

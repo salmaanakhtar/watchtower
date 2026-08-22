@@ -30,9 +30,12 @@ model Submission {
   status      String   @default("received") // received | analyzing | done | error | queued | reviewed
   analysis    String? // semi-manual analysis note (Phase 0)
   result      String? // JSON-encoded AnalysisResult (Phase 1, deprecated in favor of canonical rows)
+  consent     Boolean  @default(false) // WT-8: user accepted the processing notice (consent flow)
+  consentAt   DateTime? // WT-8: when consent was given
   createdAt   DateTime @default(now())
 
   @@index([contentHash, createdAt]) // dedupe lookups + retention sweeps
+  @@index([consent, createdAt]) // WT-8: retention/consent sweeps
 }
 
 model Waitlist {
@@ -46,7 +49,8 @@ model Waitlist {
 
 model User {
   id             String       @id @default(cuid())
-  email          String?      @unique
+  email          String?      // encrypted at rest (WT-8, AES-256-GCM)
+  emailHash      String?      @unique // WT-8: deterministic HMAC for email lookups (encrypted email can't be searched)
   anonymous      Boolean      @default(true) // true until account creation (WT-5)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -221,4 +225,20 @@ model Event {
 
   @@index([userId, createdAt])
   @@index([obligationId])
+}
+
+// WT-8: append-only audit trail for sensitive operations (admin auth/review,
+// auth success/failure, one-click unwatch, retention sweeps). Never exposed
+// to the app UI; only readable by the admin surface.
+model AuditLog {
+  id        String   @id @default(cuid())
+  actor     String   @default("system") // admin | user:<id> | system | email:<hash>
+  action    String // admin_authorized | admin_denied | admin_review | auth_request | auth_verify_success | auth_verify_failed | unwatch | retention_sweep | consent
+  target    String? // entity id or key
+  detail    String? // free-form context (never contains plaintext PII)
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([createdAt])
 }

@@ -34,7 +34,7 @@
 - What should be the canonical event/obligation schema?
 - How should evidence and provenance be stored?
 - How should confidence thresholds affect alerts/actions?
-- What data should be encrypted separately or isolated?
+- ~~What data should be encrypted separately or isolated?~~ **Answered (WT-8, 2026-08-22):** PII strings (emails, document text, queued raw bytes, result/analysis payloads) are encrypted at rest with AES-256-GCM (`FIELD_ENCRYPTION_KEY`); lookups use deterministic HMAC hashes (`User.emailHash`). Remaining question: how to handle encrypted object storage (S3/R2) once `rawBytes`/`dataUrl` move out of SQLite.
 - **Proposed answers in `docs/PHASE0_1_PLAN.md` §5 — to confirm with the first 50 real documents.**
 - Which document categories can the extraction pipeline handle reliably (PDF scans vs screenshots vs .eml)? — needs Phase 0 tech spike.
 - Is a cheap/fast LLM sufficient for structured extraction at < $0.10/analysis, or does quality require a frontier model? — needs Phase 1 cost measurement.

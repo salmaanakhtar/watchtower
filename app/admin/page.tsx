@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { adminAuthorized } from "@/lib/admin";
+import { decryptField } from "@/lib/crypto";
+import { audit } from "@/lib/audit";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -34,6 +36,12 @@ async function reviewAction(formData: FormData) {
   if (typeof category === "string" && category) data.category = category;
   if (typeof analysis === "string" && analysis.trim()) data.analysis = analysis.trim();
   await db.submission.update({ where: { id }, data });
+  await audit({
+    actor: "admin",
+    action: "admin_review",
+    target: id,
+    detail: `category=${data.category ?? "none"} via server action`,
+  });
 }
 
 export default async function AdminPage() {
@@ -73,9 +81,18 @@ export default async function AdminPage() {
     }),
   ]);
 
+  const waitlistView = waitlist.map((w) => ({ ...w, email: decryptField(w.email) ?? "" }));
+
   const total = submissions.length;
   const queued = submissions.filter((s) => s.status === "queued").length;
   const reviewed = submissions.filter((s) => s.status === "reviewed").length;
+  const submissionsView = submissions.map((s) => ({
+    ...s,
+    content: decryptField(s.content) ?? "",
+    analysis: decryptField(s.analysis),
+    rawBytes: decryptField(s.rawBytes),
+    dataUrl: decryptField(s.dataUrl),
+  }));
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
@@ -100,13 +117,13 @@ export default async function AdminPage() {
 
       <section className="mt-8">
         <h2 className="text-lg font-semibold text-(--wt-ink-700)">
-          Submissions ({submissions.length})
+          Submissions ({submissionsView.length})
         </h2>
         <ul className="mt-3 space-y-3">
-          {submissions.length === 0 && (
+          {submissionsView.length === 0 && (
             <li className="text-sm text-(--wt-ink-500)">No submissions yet.</li>
           )}
-          {submissions.map((s) => (
+          {submissionsView.map((s) => (
             <li
               key={s.id}
               className="rounded-lg border border-(--wt-ink-300) bg-(--wt-paper-0) p-4"
@@ -191,7 +208,7 @@ export default async function AdminPage() {
           {waitlist.length === 0 && (
             <li className="text-sm text-(--wt-ink-500)">No signups yet.</li>
           )}
-          {waitlist.map((w) => (
+          {waitlistView.map((w) => (
             <li
               key={w.id}
               className="rounded-lg border border-(--wt-ink-300) bg-(--wt-paper-0) px-4 py-3 text-sm"

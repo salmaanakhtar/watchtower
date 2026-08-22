@@ -6,6 +6,8 @@ import {
   SESSION_TTL_MS,
 } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { encryptField, hashForLookup } from "@/lib/crypto";
+import { audit, requestIp } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -22,20 +24,29 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   try {
     token = paramsSchema.parse(await ctx.params).token;
   } catch {
+    await audit({ actor: "system", action: "auth_verify_failed", detail: "malformed token", ip: requestIp(req) });
     return redirectWith("/?auth=invalid");
   }
 
   const payload = parseMagicToken(token);
   if (!payload) {
+    await audit({ actor: "system", action: "auth_verify_failed", detail: "invalid token", ip: requestIp(req) });
     return redirectWith("/?auth=invalid");
   }
 
   const email = payload.email;
-  let user = await db.user.findUnique({ where: { email } });
+  const emailHash = hashForLookup(email);
+  let user = await db.user.findUnique({ where: { emailHash } });
   if (!user) {
     // Token is valid but the user row vanished (e.g. retention sweep).
-    user = await db.user.create({ data: { email, anonymous: false } });
+    user = await db.user.create({ data: { emailHash, email: encryptField(email), anonymous: false } });
   }
+  await audit({
+    actor: `user:${user.id}`,
+    action: "auth_verify_success",
+    detail: `email:${emailHash}`,
+    ip: requestIp(req),
+  });
 
   const cookieHeader = req.headers.get("cookie") ?? "";
   const pendingMatch = cookieHeader.match(/(?:^|;\s*)wt_pending_obligation=([^;]+)/);
@@ -49,6 +60,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
     path: "/",
     httpOnly: true,
     sameSite: "lax",
+    secure: (process.env.APP_ORIGIN ?? "").startsWith("https://"),
     maxAge: Math.floor(SESSION_TTL_MS / 1000),
   });
 

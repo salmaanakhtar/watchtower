@@ -55,7 +55,7 @@ async function analyze(content: string) {
     new Request("http://localhost/api/analyses", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content, variant: "A", kind: "paste" }),
+      body: JSON.stringify({ content, variant: "A", kind: "paste", consent: true }),
     }),
   );
   return res.json();

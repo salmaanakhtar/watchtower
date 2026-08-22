@@ -7,4 +7,6 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { startSweepScheduler } = await import("@/lib/sweep-scheduler");
   startSweepScheduler();
+  const { startRetentionScheduler } = await import("@/lib/retention-scheduler");
+  startRetentionScheduler();
 }

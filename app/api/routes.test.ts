@@ -1,4 +1,4 @@
-// Route integration tests — exercise the API handlers against a real SQLite DB.
+﻿// Route integration tests â€” exercise the API handlers against a real SQLite DB.
 // Uses the same migration as dev, but a throwaway test database.
 
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
@@ -40,6 +40,7 @@ describe("POST /api/analyses", () => {
           content: "Your Adobe plan renews on October 14 at $19.99/month. Cancel before.",
           variant: "A",
           kind: "paste",
+          consent: true,
         }),
       }),
     );
@@ -70,6 +71,7 @@ describe("POST /api/analyses", () => {
           content: "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.",
           variant: "A",
           kind: "paste",
+          consent: true,
         }),
       }),
     );
@@ -133,6 +135,7 @@ describe("POST /api/analyses", () => {
           content: "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.",
           variant: "A",
           kind: "paste",
+          consent: true,
         }),
       }),
     );
@@ -169,6 +172,7 @@ describe("POST /api/analyses", () => {
           content: "policy.txt",
           variant: "A",
           kind: "file",
+          consent: true,
           contentType: "text/plain",
           filename: "policy.txt",
           base64: b64,
@@ -192,6 +196,7 @@ describe("POST /api/analyses", () => {
           content: "bill.pdf",
           variant: "A",
           kind: "file",
+          consent: true,
           contentType: "application/pdf",
           filename: "bill.pdf",
           base64: b64,
@@ -214,6 +219,7 @@ describe("POST /api/analyses", () => {
           content: "bill.pdf",
           variant: "A",
           kind: "file",
+          consent: true,
           contentType: "application/pdf",
           filename: "bill.pdf",
           base64: b64,
@@ -245,6 +251,7 @@ describe("POST /api/analyses", () => {
           content: "x.zip",
           variant: "A",
           kind: "file",
+          consent: true,
           contentType: "application/zip",
           filename: "x.zip",
           base64: b64,
@@ -276,6 +283,7 @@ describe("GET /api/analyses/[id]", () => {
           content: "Your Adobe plan renews on October 14 at $19.99/month. Cancel before.",
           variant: "A",
           kind: "paste",
+          consent: true,
         }),
       }),
     );
@@ -362,6 +370,7 @@ describe("PATCH /api/admin/[id]", () => {
           content: "bill.pdf",
           variant: "A",
           kind: "file",
+          consent: true,
           contentType: "application/pdf",
           filename: "bill.pdf",
           base64: b64,
@@ -392,3 +401,4 @@ describe("PATCH /api/admin/[id]", () => {
     expect(json.updated.status).toBe("reviewed");
   });
 });
+

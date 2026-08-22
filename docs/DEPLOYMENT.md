@@ -35,7 +35,9 @@ python3 /opt/hermes/agent/data/skills/deployments/salmaan-deploy/scripts/hermes-
 ... secret unset --subdomain watchtower --key KEY --confirm yes
 ```
 
-The deployer recreates the container so the new env takes effect. Current keys: `DATABASE_URL`, `ADMIN_SECRET`, `AUTH_SECRET`, `AUTH_MAGIC_SECRET` (WT-5, set 2026-08-22; both random 48-char alphanumerics).
+The deployer recreates the container so the new env takes effect. Current keys: `DATABASE_URL`, `ADMIN_SECRET`, `AUTH_SECRET`, `AUTH_MAGIC_SECRET` (WT-5, set 2026-08-22; both random 48-char alphanumerics), `APP_ORIGIN`, `RESEND_API_KEY`, `EMAIL_FROM` (WT-6, set 2026-08-22; verified sending works).
+
+WT-8 adds `FIELD_ENCRYPTION_KEY` (64 hex chars — required before deploying WT-8, since new writes are encrypted with it and legacy plaintext stays readable). Retention is opt-in via `RETENTION_ENABLED=1`; set before rolling out so the daily sweep deletes unconsented/stale rows.
 
 ### Deployment observations (2026-08-22, WT-2)
 
