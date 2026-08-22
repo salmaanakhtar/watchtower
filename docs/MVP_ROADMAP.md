@@ -37,15 +37,18 @@ Must-have outputs:
 - Recommended action
 - Confidence / source evidence
 
-## Phase 2 — Accounts + Watchlist
+## Phase 2 — Recurring product (in progress, 2026-08-23; Linear WT-10..WT-15)
+> Note: the roadmap's original "Phase 2 = Accounts + Watchlist" was **already shipped** in Phase 1 (WT-5). Phase 2 as now scoped is the *recurring-product* phase: email-forwarding ingestion (WT-11/12), money-protected ledger (WT-13), deadline reminders (WT-14), acquisition experiments (WT-15).
+
 Add persistence:
-- Authentication
-- Saved items
-- Watchlist dashboard
-- Status
-- Deadlines
-- Potential exposure
-- Notes/history
+- Authentication ✅ (WT-5)
+- Saved items ✅ (WT-5)
+- Watchlist dashboard ✅ (WT-5)
+- Status / deadlines / exposure ✅ (WT-5)
+- Notes/history ✅ (WT-5)
+- **NEW:** email forwarding ingestion (per-account addresses + inbound infra)
+- **NEW:** exposure/money-protected ledger
+- **NEW:** deadline reminder sweep (T-7 / T-1)
 
 This phase converts one-off utility into a recurring product.
 

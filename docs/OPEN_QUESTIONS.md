@@ -21,9 +21,16 @@
 - How much measurable value must the product create before users will pay monthly?
 
 ## MVP scope
-- Which document/email types should be supported first?
-- Which categories can be extracted reliably enough for launch?
-- What should be deterministic vs LLM-driven?
+- ~~Which document/email types should be supported first?~~ **Answered (Phase 1, WT-3):** PDF (text layer), images (OCR via tesseract.js), `.eml` (RFC822 + HTML fallback), pasted text. Remaining: which categories need the most accuracy investment (Phase 2 precision audit).
+- ~~Which categories can be extracted reliably enough for launch?~~ **Answered (Phase 1):** subscriptions, price increases, trials, cancellations — deterministic rules + env-gated LLM structured extraction.
+- ~~What should be deterministic vs LLM-driven?~~ **Answered (Phase 1):** deterministic = file handling, normalization, alert gating, scheduling, classification rules; LLM = structured extraction into the canonical schema, env-gated (see `docs/PHASE0_1_PLAN.md` §5.5).
+
+## Phase 2 (recurring product)
+- Which inbound email provider (Resend Inbound vs self-hosted MX) gives the best deliverability + abuse controls at Phase 2 scale?
+- What is the right DMARC policy for the forwarding domain (p=quarantine vs reject) while user forwards are still being learned?
+- How should the money-protected ledger handle counterfactual "prevented" dollars without overclaiming (precise attribution rules)?
+- Do users actually forward bills, or is the friction too high (email-forwarding assumption A6 needs real-world validation)?
+- What is the correct reminder cadence (T-7/T-1) without becoming spammy?
 
 ## Agent actions
 - Which low-risk actions can be safely automated first?
