@@ -9,6 +9,29 @@ import { unlinkSync } from "node:fs";
 const TEST_DB = path.join(__dirname, ".test.db");
 process.env.DATABASE_URL = `file:${TEST_DB}`;
 
+function makeMinimalPdf(text: string): Buffer {
+  const objs = [
+    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
+    "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
+    "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj",
+    `4 0 obj << /Length ${100} >> stream\nBT /F1 18 Tf 72 720 Td (${text}) Tj ET\nendstream endobj`,
+    "5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
+  ];
+  let content = "%PDF-1.4\n";
+  const offsets = [0];
+  for (const o of objs) {
+    offsets.push(Buffer.byteLength(content));
+    content += o + "\n";
+  }
+  const xrefStart = Buffer.byteLength(content);
+  content += "xref\n0 6\n0000000000 65535 f \n";
+  for (let i = 1; i <= 5; i++) {
+    content += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+  }
+  content += "trailer << /Size 6 /Root 1 0 R >>\nstartxref\n" + xrefStart + "\n%%EOF";
+  return Buffer.from(content, "utf8");
+}
+
 import { POST as analysesPOST } from "@/app/api/analyses/route";
 import { GET as analysisGET } from "@/app/api/analyses/[id]/route";
 import { POST as waitlistPOST } from "@/app/api/waitlist/route";
@@ -207,6 +230,92 @@ describe("POST /api/analyses", () => {
     const json = await res.json();
     expect(json.queued).toBe(true);
     expect(json.result).toBeNull();
+  });
+
+  it("extracts a real PDF's text layer and analyzes it instead of queuing (WT-3)", async () => {
+    const pdf = makeMinimalPdf("Your Adobe plan renews on October 14 at $19.99 per month.");
+    const res = await analysesPOST(
+      new Request("http://localhost/api/analyses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "bill.pdf",
+          variant: "A",
+          kind: "file",
+          consent: true,
+          contentType: "application/pdf",
+          filename: "bill.pdf",
+          base64: pdf.toString("base64"),
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.queued).toBe(false);
+    expect(json.result.kind).toBe("subscription");
+    expect(json.result.exposureCentsPerYear).toBe(Math.round(19.99 * 12 * 100));
+    expect(json.obligation?.id).toBeTruthy();
+
+    const doc = await db.document.findFirst({
+      where: { submissionId: json.id },
+      select: { extractionMethod: true },
+    });
+    expect(doc?.extractionMethod).toBe("pdf-parse");
+  });
+
+  it("parses .eml uploads and analyzes the email body (WT-3)", async () => {
+    const eml = [
+      "From: billing@example.com",
+      "Subject: Your plan renews",
+      "Content-Type: text/plain",
+      "",
+      "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.",
+      "",
+    ].join("\n");
+    const res = await analysesPOST(
+      new Request("http://localhost/api/analyses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "renewal.eml",
+          variant: "A",
+          kind: "file",
+          consent: true,
+          contentType: "message/rfc822",
+          filename: "renewal.eml",
+          base64: Buffer.from(eml).toString("base64"),
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.queued).toBe(false);
+    expect(json.result.kind).toBe("subscription");
+
+    const doc = await db.document.findFirst({
+      where: { submissionId: json.id },
+      select: { extractionMethod: true },
+    });
+    expect(doc?.extractionMethod).toBe("eml");
+  });
+
+  it("stores an ISO dueDate on the canonical obligation (WT-3)", async () => {
+    const res = await analysesPOST(
+      new Request("http://localhost/api/analyses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "Your Adobe plan renews on October 14 at $19.99/month. Cancel before.",
+          variant: "A",
+          kind: "paste",
+          consent: true,
+        }),
+      }),
+    );
+    const json = await res.json();
+    const ob = await db.obligation.findFirst({ where: { id: json.obligation.id } });
+    expect(ob?.dueDate).toBeInstanceOf(Date);
+    expect(ob?.renewalDate).toBeInstanceOf(Date);
   });
 
   it("retains raw bytes for queued uploads so the admin can review the actual file", async () => {

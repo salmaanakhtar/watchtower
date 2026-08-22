@@ -22,6 +22,7 @@ const ALLOWED_MIME = new Set([
   "image/png",
   "image/jpeg",
   "image/webp",
+  "message/rfc822", // .eml (WT-3)
 ]);
 
 const KNOWN_UNSUPPORTED = new Set([
@@ -29,6 +30,7 @@ const KNOWN_UNSUPPORTED = new Set([
   "image/png",
   "image/jpeg",
   "image/webp",
+  "message/rfc822",
 ]);
 
 export function uploadSupported(mime: string): boolean {

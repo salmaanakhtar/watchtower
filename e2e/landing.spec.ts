@@ -1,5 +1,28 @@
 import { test, expect } from "@playwright/test";
 
+function makeMinimalPdf(text: string): Buffer {
+  const objs = [
+    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
+    "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
+    "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj",
+    `4 0 obj << /Length ${100} >> stream\nBT /F1 18 Tf 72 720 Td (${text}) Tj ET\nendstream endobj`,
+    "5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
+  ];
+  let content = "%PDF-1.4\n";
+  const offsets = [0];
+  for (const o of objs) {
+    offsets.push(Buffer.byteLength(content));
+    content += o + "\n";
+  }
+  const xrefStart = Buffer.byteLength(content);
+  content += "xref\n0 6\n0000000000 65535 f \n";
+  for (let i = 1; i <= 5; i++) {
+    content += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+  }
+  content += "trailer << /Size 6 /Root 1 0 R >>\nstartxref\n" + xrefStart + "\n%%EOF";
+  return Buffer.from(content, "utf8");
+}
+
 test.describe("Landing page variants", () => {
   test("serves a variant with badge, headline, and CTA", async ({ page, context }) => {
     await context.addCookies([
@@ -129,8 +152,24 @@ test.describe("Upload flow", () => {
       mimeType: "application/pdf",
       buffer: Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< >>\n%%EOF"),
     });
-    await expect(page.getByTestId("file-message")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("file-message")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("file-message")).toContainText("queued for manual review");
     await expect(page.getByTestId("result-card")).not.toBeVisible();
+  });
+
+  test("extracts a real PDF's text layer and shows a result", async ({ page, context }) => {
+    await context.addCookies([
+      { name: "wt_variant", value: "A", url: "http://127.0.0.1:3100" },
+    ]);
+    await page.goto("/");
+    await page.getByTestId("tab-file").click();
+    await page.getByTestId("consent-input").check();
+    await page.getByTestId("file-input").setInputFiles({
+      name: "insurance.pdf",
+      mimeType: "application/pdf",
+      buffer: makeMinimalPdf("Your home insurance policy renews on November 1 at $850 per year."),
+    });
+    await expect(page.getByTestId("result-card")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("kind-badge")).toContainText("Subscription");
   });
 });

@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // WT-3: pdfjs-dist + tesseract.js are heavy ESM/native-ish libs that must be
+  // required at runtime (node_modules), not bundled by the Next compiler.
+  serverExternalPackages: ["pdfjs-dist", "tesseract.js"],
   async headers() {
     return [
       {

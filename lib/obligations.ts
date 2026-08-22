@@ -4,6 +4,8 @@
 // (§5.4 of PHASE0_1_PLAN.md) can be enforced deterministically.
 
 import type { AnalysisResult, RiskKind } from "@/lib/analysis";
+import type { StructuredExtraction } from "@/lib/llm-extract";
+import { parseDeadline } from "@/lib/dates";
 
 export const RISK_KINDS = [
   "price_increase",
@@ -131,9 +133,11 @@ export function confidenceFor(analysis: Pick<AnalysisResult, "confidence" | "kin
 
 function toDate(value: string | null): string | null {
   if (!value) return null;
-  // The engine returns human-readable dates ("October 14"). Phase 1 extraction
-  // (WT-3) produces ISO dates; until then store null rather than a fake date.
-  return null;
+  // WT-3: the deterministic engine emits human-readable dates ("October 14").
+  // parseDeadline anchors them to the next real occurrence (ISO) so the
+  // notification sweep can use a real due date instead of a label.
+  const date = parseDeadline(value);
+  return date ? date.toISOString() : null;
 }
 
 /** Build the canonical inputs from a deterministic AnalysisResult. */
@@ -201,4 +205,92 @@ export function factLabel(label: string): string {
 
 export function factConfidence(label: string): number {
   return label === "Amount" || label === "Provider" || label === "Deadline" ? 0.9 : 0.6;
+}
+
+// ─── LLM structured extraction → canonical (WT-3) ────────────────────────────
+
+/**
+ * Map a schema-validated LLM structured extraction into the canonical
+ * obligation + provenance rows. This is the "LLM as extractor" path: the
+ * model provides ISO dates, per-field confidence, and precise amounts; the
+ * deterministic risk logic still gates what reaches the user (the response
+ * contract and alert gate live in the deterministic engine).
+ */
+export function toCanonicalStructured(
+  s: StructuredExtraction,
+  document: CanonicalDocumentInput,
+): { obligation: CanonicalObligationInput; facts: ProvenanceFactInput[] } {
+  const facts: ProvenanceFactInput[] = s.facts.map((f) => ({
+    label: f.label.toLowerCase().replace(/\s+/g, "_"),
+    value: f.value,
+    quote: f.quote,
+    offsetStart: f.offsetStart,
+    offsetEnd: f.offsetEnd,
+    confidence: f.confidence,
+  }));
+
+  // The model's risk type maps straight into the canonical vocabulary.
+  const riskType = s.risk.type;
+  const kindMap: Record<string, ObligationKind> = {
+    subscription: "subscription",
+    bill: "bill",
+    contract: "contract",
+    receipt: "other",
+    refund: "refund",
+    notice: "other",
+    other: "other",
+  };
+
+  const noticeDeadline = s.dates.noticeDeadlineDate ?? s.dates.dueDate;
+  const dueDate = s.dates.dueDate ?? noticeDeadline;
+
+  const obligation: CanonicalObligationInput = {
+    kind: kindMap[s.documentKind] ?? "other",
+    counterpartyName: s.counterparty?.name ?? null,
+    amountCents: s.amount?.cents ?? null,
+    currency: s.amount?.currency ?? "USD",
+    interval: s.amount?.interval ?? null,
+    startDate: s.dates.startDate,
+    renewalDate: s.dates.renewalDate,
+    noticeDeadlineDate: noticeDeadline,
+    expiryDate: s.dates.expiryDate,
+    cancellationNoticeDays: s.cancellationTerms.noticePeriodDays,
+    autoRenews: s.cancellationTerms.autoRenews,
+    termsQuote: s.cancellationTerms.quote,
+    riskType,
+    exposureLowCents: s.risk.exposureLowCents,
+    exposureHighCents: s.risk.exposureHighCents,
+    exposureAssumption: s.risk.exposureAssumption,
+    dueDate,
+    verification: s.risk.verification,
+    confidence: s.risk.confidence,
+    status: "open",
+  };
+
+  // If the model produced no facts, synthesize minimal provenance from the
+  // counterparty + amount so the obligation is never a bare row.
+  if (facts.length === 0) {
+    if (s.counterparty?.name) {
+      facts.push({
+        label: "counterparty",
+        value: s.counterparty.name,
+        quote: document.extractedText.slice(0, 160),
+        offsetStart: null,
+        offsetEnd: null,
+        confidence: s.counterparty.confidence,
+      });
+    }
+    if (s.amount?.cents != null) {
+      facts.push({
+        label: "amount",
+        value: `${s.amount.cents} cents`,
+        quote: document.extractedText.slice(0, 160),
+        offsetStart: null,
+        offsetEnd: null,
+        confidence: s.amount.confidence,
+      });
+    }
+  }
+
+  return { obligation, facts };
 }

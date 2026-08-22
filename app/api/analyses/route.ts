@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { analyzeText } from "@/lib/analysis";
 import { db } from "@/lib/db";
-import { toCanonical } from "@/lib/obligations";
+import { toCanonical, toCanonicalStructured } from "@/lib/obligations";
 import { encryptField } from "@/lib/crypto";
 import { ipRateExceeded } from "@/lib/rate-limit";
+import { extractDocumentText } from "@/lib/extraction";
+import { structuredExtract } from "@/lib/llm-extract";
 import {
   contentHash,
   decodeUpload,
@@ -42,8 +44,12 @@ function clientIp(req: Request): string | null {
 }
 
 // Anonymous analyzer entrypoint (WT-2). Paste → analyze immediately.
-// Uploads: text-ish types are decoded deterministically and analyzed;
-// PDFs/images are acknowledged as queued (extraction lands in Phase 1).
+// Uploads: text-ish types are decoded deterministically; PDFs/images/.eml are
+// extracted deterministically (pdfjs-dist / OCR / RFC822) and analyzed. When
+// extraction yields nothing readable, the document goes to the honest manual
+// review queue (WT-9) instead of a fake result. If LLM extraction is
+// configured (LLM_API_KEY), the canonical obligation is enriched with ISO
+// dates + per-field confidence (WT-3).
 export async function POST(req: Request) {
   // WT-8: anonymous per-IP quota (in-memory; resets on restart).
   if (ipRateExceeded(clientIp(req))) {
@@ -87,9 +93,42 @@ export async function POST(req: Request) {
         { status: 415 },
       );
     }
+
     if (extractionPending(decoded.contentType)) {
-      // Acknowledge, don't fake a result: the submission goes to the manual
-      // review queue (WT-9) and the admin sees the original file.
+      // WT-3: try deterministic extraction (PDF text / OCR / .eml). If we get
+      // readable text, analyze it like a paste; otherwise queue for review.
+      const extracted = await extractDocumentText(decoded);
+      if (extracted && extracted.text.trim()) {
+        const result = analyzeText(extracted.text.slice(0, MAX_DECODED_CHARS));
+        const submission = await db.submission.create({
+          data: {
+            variant,
+            kind,
+            contentType: decoded.contentType,
+            filename: decoded.filename,
+            sizeBytes: decoded.bytes.length,
+            contentHash: contentHash(extracted.text),
+            content: encryptField(extracted.text.slice(0, MAX_DECODED_CHARS)) ?? "",
+            consent: true,
+            consentAt,
+            status: "done",
+            result: encryptField(JSON.stringify(result)) ?? null,
+            analysis: encryptField(JSON.stringify({ title: result.title, exposure: result.exposureLabel })) ?? null,
+          },
+        });
+        const canonical = await persistCanonical(submission.id, result, {
+          source: "upload",
+          filename: decoded.filename,
+          contentType: decoded.contentType,
+          extractedText: extracted.text.slice(0, MAX_DECODED_CHARS),
+          extractionMethod: extracted.method,
+          contentHash: contentHash(extracted.text),
+        });
+        return NextResponse.json({ id: submission.id, result, queued: false, obligation: canonical });
+      }
+
+      // Honest fallback: acknowledge the upload, don't fake a result. The
+      // submission goes to the manual review queue (WT-9).
       const dataUrl = `data:${decoded.contentType};base64,${parsed.data.base64}`;
       const submission = await db.submission.create({
         data: {
@@ -112,7 +151,7 @@ export async function POST(req: Request) {
         result: null,
         queued: true,
         message:
-          "PDF and image extraction is coming online in Phase 1. This document has been queued for manual review.",
+          "We couldn't read text from this file automatically, so it's queued for manual review. Try uploading a clearer scan or screenshot.",
       });
     }
 
@@ -145,6 +184,7 @@ export async function POST(req: Request) {
       filename: decoded.filename,
       contentType: decoded.contentType,
       extractedText: decoded.decodedText.slice(0, MAX_DECODED_CHARS),
+      extractionMethod: "raw",
       contentHash: contentHash(decoded.decodedText),
     });
     return NextResponse.json({ id: submission.id, result, queued: false, obligation: canonical });
@@ -170,13 +210,17 @@ export async function POST(req: Request) {
     filename: null,
     contentType: contentType ?? "text/plain",
     extractedText: content,
+    extractionMethod: "raw",
     contentHash: contentHash(content),
   });
 
   return NextResponse.json({ id: submission.id, result, queued: false, obligation: canonical });
 }
 
-// WT-4: persist the canonical obligation + provenance facts for a submission.
+// WT-4/WT-3: persist the canonical obligation + provenance facts for a
+// submission. When LLM extraction is configured, the deterministic analysis
+// still drives the user-facing result, but the durable rows are enriched with
+// LLM structured extraction (ISO dates, per-field confidence, precise amounts).
 // Returns the created obligation id so clients can reference the durable row.
 async function persistCanonical(
   submissionId: string,
@@ -186,26 +230,41 @@ async function persistCanonical(
     filename: string | null;
     contentType: string | null;
     extractedText: string;
+    extractionMethod: string;
     contentHash: string | null;
   },
 ): Promise<{ id: string } | null> {
   try {
-    const { obligation, facts } = toCanonical(result, {
-      source: document.source,
-      filename: document.filename,
-      contentType: document.contentType,
-      extractedText: document.extractedText,
-      extractionMethod: document.source === "paste" ? "raw" : "raw",
-      contentHash: document.contentHash,
-    });
+    // WT-3: optional LLM structured extraction (env-gated, schema-validated,
+    // never throws). On success we map its ISO dates + confidence into the
+    // canonical rows; on any failure we fall back to the deterministic mapper.
+    const structured = await structuredExtract(document.extractedText.slice(0, 20_000));
+    const { obligation, facts } = structured
+      ? toCanonicalStructured(structured, {
+          source: document.source,
+          filename: document.filename,
+          contentType: document.contentType,
+          extractedText: document.extractedText,
+          extractionMethod: "llm",
+          contentHash: document.contentHash,
+        })
+      : toCanonical(result, {
+          source: document.source,
+          filename: document.filename,
+          contentType: document.contentType,
+          extractedText: document.extractedText,
+          extractionMethod: document.extractionMethod,
+          contentHash: document.contentHash,
+        });
 
+    const extractionMethod = structured ? "llm" : document.extractionMethod;
     const created = await db.document.create({
       data: {
         source: document.source,
         filename: document.filename,
         contentType: document.contentType,
         extractedText: encryptField(document.extractedText) ?? "",
-        extractionMethod: "raw",
+        extractionMethod,
         contentHash: document.contentHash,
         submissionId,
         obligations: {
@@ -215,12 +274,19 @@ async function persistCanonical(
             amountCents: obligation.amountCents,
             currency: obligation.currency ?? "USD",
             interval: obligation.interval,
+            amountConfidence: null,
+            startDate: obligation.startDate ? new Date(obligation.startDate) : null,
+            renewalDate: obligation.renewalDate ? new Date(obligation.renewalDate) : null,
+            noticeDeadlineDate: obligation.noticeDeadlineDate ? new Date(obligation.noticeDeadlineDate) : null,
+            expiryDate: obligation.expiryDate ? new Date(obligation.expiryDate) : null,
+            cancellationNoticeDays: obligation.cancellationNoticeDays,
             autoRenews: obligation.autoRenews,
             termsQuote: obligation.termsQuote,
             riskType: obligation.riskType,
             exposureLowCents: obligation.exposureLowCents,
             exposureHighCents: obligation.exposureHighCents,
             exposureAssumption: obligation.exposureAssumption,
+            dueDate: obligation.dueDate ? new Date(obligation.dueDate) : null,
             verification: obligation.verification,
             confidence: obligation.confidence,
             status: "open",

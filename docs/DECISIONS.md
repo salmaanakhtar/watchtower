@@ -134,6 +134,15 @@
 
 ---
 
+## 2026-08-23 — WT-3: Deterministic extraction + env-gated LLM structured extraction shipped
+**Decision:** Ship the WT-3 extraction pipeline as deterministic-first with an optional LLM complement. Deterministic (always on): PDF text-layer extraction via `pdfjs-dist` legacy build, image OCR via `tesseract.js`, `.eml` RFC822 parsing (quoted-printable/base64), plus a shared ISO date primitive (`lib/dates.ts`). PDFs/images/.eml that yield readable text are now analyzed instead of queued; unreadable files keep the honest manual-review fallback (same response contract). LLM (env-gated): an OpenAI-compatible chat-completions client (`lib/llm-extract.ts`, `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL`) that runs temperature 0, validates output against a zod schema (retry once), and maps ISO dates + per-field confidence into canonical obligations. The deterministic engine still gates what reaches the user; the LLM only enriches durable structured state. No LLM key = fully deterministic path (unchanged behavior).
+
+**Why:** Real PDF/OCR extraction is the single biggest gap between the queued Phase 0 path and a usable analyzer; the docs call for deterministic-first (§5.5) with the LLM as a schema-validated extractor, not an agent. Env-gating keeps cost at $0 until a key is configured and guarantees the pipeline never breaks when the model fails.
+
+**Revisit when:** A provider/key is configured and cost/analysis is measured against the <$0.10 budget (§8); scanned (image-only) PDFs need page-render → OCR chaining; vision models replace tesseract for screenshots.
+
+---
+
 ## 2026-08-22 — WT-8: Security & privacy hardening shipped
 **Decision:** Ship the Phase 1 hardening baseline: AES-256-GCM field encryption at rest (`FIELD_ENCRYPTION_KEY`, envelope `v1.iv.tag.ct`, tolerant of legacy plaintext on decrypt) for emails + document text; deterministic HMAC lookup hashes for emails (`User.emailHash` unique) so encrypted fields stay searchable; consent required before storing any analysis (`Submission.consent/consentAt`); per-email magic-link rate limiting (1/min + 5/hr, hash-keyed — fixes the old global-cooldown bug); daily retention sweep (delete unconsented/stale queued, anonymize old unreferenced, never touch watched items); append-only `AuditLog`; `Secure` cookies behind https; security headers; lazy Prisma client.
 
