@@ -43,20 +43,24 @@ WT-8 adds `FIELD_ENCRYPTION_KEY` (64 hex chars — required before deploying WT-
 
 Forwarding subdomain: **`in.watchtower.salmaan.dev`** (name.com DNS, Tailnet DNS pattern).
 
-**DNS records (name.com, under `salmaan.dev`):**
-- `MX` — `in.watchtower.salmaan.dev` → Resend's inbound MX (copy the exact host/priority from the Resend Receiving → Domains page; it must be the lowest priority for the subdomain). Must be a **subdomain** so it never conflicts with the root's sending MX.
-- `TXT` — `in.watchtower.salmaan.dev` → `"v=spf1 include:amazonses.com ~all"` (Resend's SPF for inbound; exact value from Resend's receiving setup).
-- `TXT` — `in.watchtower.salmaan.dev` → DMARC policy `_dmarc.in.watchtower.salmaan.dev` → `"v=DMARC1; p=quarantine; rua=mailto:dmarc@salmaan.dev"` (quarantine, not reject, while user forwards are being learned — see OPEN_QUESTIONS).
-- Resend may also publish a DKIM key for the receiving domain; add it if the dashboard asks.
+**DNS records (name.com, under `salmaan.dev`)** — all set 2026-08-23:
+- `MX` — `in.watchtower.salmaan.dev` → `inbound-smtp.eu-west-1.amazonaws.com` prio 10 (Resend's inbound MX for region eu-west-1; lowest priority on the subdomain only, never the root).
+- `TXT` — `in.watchtower.salmaan.dev` → `"v=spf1 include:amazonses.com ~all"`.
+- `TXT` — `_dmarc.in.watchtower.salmaan.dev` → `"v=DMARC1; p=quarantine; rua=mailto:dmarc@salmaan.dev"` (quarantine, not reject, while user forwards are being learned).
+- `TXT` — `resend._domainkey.in.watchtower.salmaan.dev` → Resend's DKIM key (published when the domain was created; sending capability was re-enabled so the domain can reach `verified`).
+- `MX` + `TXT` — `send.in.watchtower.salmaan.dev` → `feedback-smtp.eu-west-1.amazonses.com` prio 10 + `v=spf1 include:amazonses.com ~all` (Resend's sending-SPF records for the subdomain).
+- Sending domain: `watchtower.salmaan.dev` is its own Resend domain (id `017bf1ab-…`, eu-west-1) — `resend._domainkey.watchtower` TXT + `send.watchtower` MX/TXT added so `EMAIL_FROM=hello@watchtower.salmaan.dev` sends. (WT-6 worked only if Resend still allowed the subdomain; current Resend requires the subdomain verified — 403 otherwise.)
 
 **Resend setup:**
-1. Verify `in.watchtower.salmaan.dev` as a domain (sending verification is NOT required to receive, but the domain must exist in the account).
-2. Enable **Receiving** for the domain; copy the MX record into name.com.
-3. Create a **Webhook** → endpoint `https://watchtower.salmaan.dev/api/inbound/webhook`, event `email.received` — save the **signing secret** (`whsec_…`).
-4. Create a second Webhook → `https://watchtower.salmaan.dev/api/inbound/events`, events `email.bounced`, `email.complained` (optional: `email.delivered`, `email.failed`, `email.suppressed`).
-5. Wait for Receiving to show "verified".
+1. `in.watchtower.salmaan.dev` exists in the account (id `8ef4a651-…`), capabilities sending+receiving **enabled** (receiving is the point; sending enabled only so verification can complete).
+2. **Receiving** enabled; Receiving record shows **verified**.
+3. **Webhook** — `https://in.watchtower.salmaan.dev/api/inbound/webhook`, event `email.received` (id `308f9bc3-…`).
+4. **Webhook** — `https://in.watchtower.salmaan.dev/api/inbound/events`, events `email.bounced`, `email.complained`, `email.delivered`, `email.failed`, `email.suppressed` (id `7c36d207-…`).
+5. Each webhook has its **own** Svix signing secret (`whsec_…`); RESEND_WEBHOOK_SECRET holds both, comma-separated (app supports this since `f914470`).
 
-**Env (set via Hermes):** `RESEND_WEBHOOK_SECRET` (the two signing secrets from steps 3+4, comma-separated — Resend issues a distinct `whsec_…` per webhook), `REPUTATION_ALERT_EMAIL` (ops inbox for degradation alerts), optionally `REPUTATION_SWEEP_INTERVAL_MS`.
+> The webhooks point at `in.watchtower.salmaan.dev` — NOT `watchtower.salmaan.dev` (that host is Tailnet-private and resolves to 100.107.222.75; Resend needs a public endpoint). Public ingress = Traefik file router `watchtower-inbound-public` in `/opt/hermes/proxy/dynamic/watchtower-inbound.yaml` (Host `in.watchtower.salmaan.dev` && PathPrefix `/api/inbound`, priority 500, no tailscale middleware; wildcard `*.salmaan.dev` LE cert covers TLS). The service URL is the watchtower container's bridge IP, kept in sync by `hermes-watchtower-webhook-sync.{service,timer}` (script `/usr/local/lib/hermes-deployer/watchtower-webhook-sync.sh`). Every other path on the subdomain and everything on `watchtower.salmaan.dev` stays Tailnet-private.
+
+**Env (set via Hermes):** `RESEND_WEBHOOK_SECRET` (both `whsec_…` from steps 3+4, comma-separated), `REPUTATION_ALERT_EMAIL=dmarc@salmaan.dev` (same ops mailbox as the DMARC rua), optionally `REPUTATION_SWEEP_INTERVAL_MS` (default 1d).
 
 **No public mail before this is green:** Do not advertise/invite forwarding until the MX is verified, DMARC is `p=quarantine` or stronger, and the webhook endpoints answer 200 (test with a message to a test address).
 
