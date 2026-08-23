@@ -109,12 +109,25 @@ export function verifyWebhookSignature(
     .map((s) => s.slice(3));
   if (provided.length === 0) return false;
 
-  const expected = createHmac("sha256", secret).update(`${id}.${timestamp}.${rawBody}`).digest("base64");
-  return provided.some((p) => {
-    const a = Buffer.from(expected);
-    const b = Buffer.from(p);
-    return a.length === b.length && timingSafeEqual(a, b);
-  });
+  // Resend generates a distinct signing secret per webhook. Support a
+  // comma-separated RESEND_WEBHOOK_SECRET so a single env var can verify
+  // both the inbound (email.received) and reputation (events) webhooks.
+  const candidates = String(secret)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (candidates.length === 0) return false;
+
+  return provided.some((p) =>
+    candidates.some((candidate) => {
+      const expected = createHmac("sha256", candidate)
+        .update(`${id}.${timestamp}.${rawBody}`)
+        .digest("base64");
+      const a = Buffer.from(expected);
+      const b = Buffer.from(p);
+      return a.length === b.length && timingSafeEqual(a, b);
+    }),
+  );
 }
 
 // ─── Address resolution ────────────────────────────────────────────────────

@@ -157,6 +157,21 @@ describe("verifyWebhookSignature", () => {
     const { raw, headers } = webhookRequest('{"type":"email.received"}');
     expect(verifyWebhookSignature(raw, headers, null)).toBe(false);
   });
+
+  it("accepts a signature for any candidate in a comma-separated secret list", () => {
+    // Resend issues a distinct secret per webhook; the app is configured with
+    // both (comma-separated). A payload signed with the second secret must
+    // verify against the combined value.
+    const payload = '{"type":"email.received"}';
+    const req = webhookRequest(payload, "whsec_second");
+    const combined = "whsec_first, whsec_second";
+    expect(verifyWebhookSignature(req.raw, req.headers, combined)).toBe(true);
+  });
+
+  it("rejects when none of the comma-separated secrets match", () => {
+    const req = webhookRequest('{"type":"email.received"}', "whsec_unknown");
+    expect(verifyWebhookSignature(req.raw, req.headers, "whsec_first, whsec_second")).toBe(false);
+  });
 });
 
 describe("address helpers", () => {

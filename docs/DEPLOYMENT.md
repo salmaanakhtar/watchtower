@@ -56,7 +56,7 @@ Forwarding subdomain: **`in.watchtower.salmaan.dev`** (name.com DNS, Tailnet DNS
 4. Create a second Webhook → `https://watchtower.salmaan.dev/api/inbound/events`, events `email.bounced`, `email.complained` (optional: `email.delivered`, `email.failed`, `email.suppressed`).
 5. Wait for Receiving to show "verified".
 
-**Env (set via Hermes):** `RESEND_WEBHOOK_SECRET` (the signing secret from step 3), `REPUTATION_ALERT_EMAIL` (ops inbox for degradation alerts), optionally `REPUTATION_SWEEP_INTERVAL_MS`.
+**Env (set via Hermes):** `RESEND_WEBHOOK_SECRET` (the two signing secrets from steps 3+4, comma-separated — Resend issues a distinct `whsec_…` per webhook), `REPUTATION_ALERT_EMAIL` (ops inbox for degradation alerts), optionally `REPUTATION_SWEEP_INTERVAL_MS`.
 
 **No public mail before this is green:** Do not advertise/invite forwarding until the MX is verified, DMARC is `p=quarantine` or stronger, and the webhook endpoints answer 200 (test with a message to a test address).
 
