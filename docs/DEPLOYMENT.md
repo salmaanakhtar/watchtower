@@ -39,6 +39,31 @@ The deployer recreates the container so the new env takes effect. Current keys: 
 
 WT-8 adds `FIELD_ENCRYPTION_KEY` (64 hex chars — required before deploying WT-8, since new writes are encrypted with it and legacy plaintext stays readable). Retention is opt-in via `RETENTION_ENABLED=1`; set before rolling out so the daily sweep deletes unconsented/stale rows.
 
+### WT-11: inbound email (forwarding) — DNS + Resend + env
+
+Forwarding subdomain: **`in.watchtower.salmaan.dev`** (name.com DNS, Tailnet DNS pattern).
+
+**DNS records (name.com, under `salmaan.dev`):**
+- `MX` — `in.watchtower.salmaan.dev` → Resend's inbound MX (copy the exact host/priority from the Resend Receiving → Domains page; it must be the lowest priority for the subdomain). Must be a **subdomain** so it never conflicts with the root's sending MX.
+- `TXT` — `in.watchtower.salmaan.dev` → `"v=spf1 include:amazonses.com ~all"` (Resend's SPF for inbound; exact value from Resend's receiving setup).
+- `TXT` — `in.watchtower.salmaan.dev` → DMARC policy `_dmarc.in.watchtower.salmaan.dev` → `"v=DMARC1; p=quarantine; rua=mailto:dmarc@salmaan.dev"` (quarantine, not reject, while user forwards are being learned — see OPEN_QUESTIONS).
+- Resend may also publish a DKIM key for the receiving domain; add it if the dashboard asks.
+
+**Resend setup:**
+1. Verify `in.watchtower.salmaan.dev` as a domain (sending verification is NOT required to receive, but the domain must exist in the account).
+2. Enable **Receiving** for the domain; copy the MX record into name.com.
+3. Create a **Webhook** → endpoint `https://watchtower.salmaan.dev/api/inbound/webhook`, event `email.received` — save the **signing secret** (`whsec_…`).
+4. Create a second Webhook → `https://watchtower.salmaan.dev/api/inbound/events`, events `email.bounced`, `email.complained` (optional: `email.delivered`, `email.failed`, `email.suppressed`).
+5. Wait for Receiving to show "verified".
+
+**Env (set via Hermes):** `RESEND_WEBHOOK_SECRET` (the signing secret from step 3), `REPUTATION_ALERT_EMAIL` (ops inbox for degradation alerts), optionally `REPUTATION_SWEEP_INTERVAL_MS`.
+
+**No public mail before this is green:** Do not advertise/invite forwarding until the MX is verified, DMARC is `p=quarantine` or stronger, and the webhook endpoints answer 200 (test with a message to a test address).
+
+**Anti-abuse defaults (WT-11):** 50 msgs/address/day cap; 10MB total content cap; unknown/disabled addresses quarantined (never bounced — bouncing feeds spam loops); unsubscribe subjects/bodies quarantined without ingesting; identical content deduped by hash; `unknown_address`/`rate_limited`/`no_content`/`unsubscribe` are the quarantine reasons recorded on `InboundMessage`.
+
+**Reputation monitoring:** bounces/complaints from the `/api/inbound/events` webhook are stored in `ReputationEvent`; the in-process daily sweep alerts `REPUTATION_ALERT_EMAIL` when complaint rate > 2% or bounce rate > 5% over the trailing 7 days (min 10 received).
+
 ### Deployment observations (2026-08-22, WT-2)
 
 - Full deploy (new commit → build → swap → healthcheck) took **~17 min** wall time. The `hermes-deployer.service` restarted once mid-deploy (clean stop/start, `NRestarts=0`); the retry reused the BuildKit cache and finished. If a deploy seems stuck: check `systemctl status hermes-deployer.service` for a running `docker build` child — a fresh `cache.db` mtime in `/var/lib/docker/buildkit/` means the build is progressing, not hung.

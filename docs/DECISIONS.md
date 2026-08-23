@@ -149,3 +149,12 @@
 **Why:** Documents are high-sensitivity PII (financial, contracts); encryption at rest + retention + consent are the GDPR/CCPA/PIPEDA baseline the plan calls for (Â§10), and the trust promise requires "never stored permanently" to be true in code, not just copy. Field-level (not whole-DB) encryption keeps lookups/dedupe via hashes, and the envelope format makes key rotation a config change rather than a migration.
 
 **Revisit when:** Object storage lands (S3/R2) â€” encrypt objects with the same key and move `rawBytes`/`dataUrl` out of SQLite; multi-instance hosting needs a durable (cross-process) rate limiter + retention lock; LLM providers are used (then log/redact LLM calls, per Â§10).
+
+---
+
+## 2026-08-23 — WT-11: Inbound email infra shipped (Resend Inbound + MX webhook)
+**Decision:** Ship inbound email via Resend Inbound on subdomain in.watchtower.salmaan.dev — MX (lowest priority on the subdomain only, never the root), SPF (Resend's include), DMARC `p=quarantine` (not reject, while user forwards are being learned), plus a Svix-signed `email.received` webhook (`/api/inbound/webhook`) that fetches full content via the Received Emails API and runs it through the shared WT-3/4 ingestion pipeline (Document source `forward` + obligation + watch item). Anti-abuse: 50 msgs/address/day cap, 10MB total cap, unknown/disabled addresses quarantined (never bounced), unsubscribe subjects/bodies quarantined, content-hash dedupe. Reputation: bounce/complaint events (`/api/inbound/events`) stored in `ReputationEvent`; daily sweep alerts `REPUTATION_ALERT_EMAIL` when complaint rate > 2% or bounce > 5% over 7 days.
+
+**Why:** Email forwarding is the highest-leverage recurring-ingestion mechanism (assumption A6); Resend Inbound is a single MX + webhook (no self-hosted MX to keep patched), and the subdomain keeps inbound MX completely separate from the sending domain so provider reputation is not coupled.
+
+**Revisit when:** Phase 2 proves forwarding demand; then add per-account address generation UI (WT-12) and possibly DMARC `p=reject` once bounce/complaint rates are learned.

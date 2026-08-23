@@ -511,3 +511,132 @@ describe("PATCH /api/admin/[id]", () => {
   });
 });
 
+// ─── WT-11: inbound webhook + reputation event routes ──────────────────────
+
+import { createHmac } from "node:crypto";
+import { POST as inboundPOST } from "@/app/api/inbound/webhook/route";
+import { POST as eventsPOST } from "@/app/api/inbound/events/route";
+
+const WH_SECRET = "route-test-webhook-secret";
+process.env.RESEND_WEBHOOK_SECRET = WH_SECRET;
+
+function signedHeaders(payload: string, id = "msg_route1") {
+  const ts = String(Math.floor(Date.now() / 1000));
+  const sig = createHmac("sha256", WH_SECRET).update(`${id}.${ts}.${payload}`).digest("base64");
+  return {
+    "svix-id": id,
+    "svix-timestamp": ts,
+    "svix-signature": `v1,${sig}`,
+    "Content-Type": "application/json",
+  };
+}
+
+describe("POST /api/inbound/webhook", () => {
+  it("rejects an unsigned request", async () => {
+    const res = await inboundPOST(
+      new Request("http://localhost/api/inbound/webhook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: '{"type":"email.received","data":{}}',
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a tampered signature", async () => {
+    const payload = '{"type":"email.received","data":{}}';
+    const res = await inboundPOST(
+      new Request("http://localhost/api/inbound/webhook", {
+        method: "POST",
+        headers: { "svix-id": "msg_1", "svix-timestamp": String(Math.floor(Date.now() / 1000)), "svix-signature": "v1,bad" },
+        body: payload,
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("ignores non-email.received events", async () => {
+    const payload = '{"type":"email.sent","data":{}}';
+    const res = await inboundPOST(
+      new Request("http://localhost/api/inbound/webhook", {
+        method: "POST",
+        headers: signedHeaders(payload),
+        body: payload,
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.ignored).toBe("email.sent");
+  });
+
+  it("quarantines an unknown-address email (no RESEND_API_KEY)", async () => {
+    const payload = JSON.stringify({
+      type: "email.received",
+      data: {
+        email_id: "email-route-1",
+        from: "spam@example.com",
+        to: ["u-nope@in.watchtower.salmaan.dev"],
+      },
+    });
+    const res = await inboundPOST(
+      new Request("http://localhost/api/inbound/webhook", {
+        method: "POST",
+        headers: signedHeaders(payload, "msg_route_unknown"),
+        body: payload,
+      }),
+    );
+    expect(res.status).toBe(200);
+    const msg = await db.inboundMessage.findUnique({ where: { resendEmailId: "email-route-1" } });
+    expect(msg?.status).toBe("quarantined");
+    expect(msg?.quarantineReason).toBe("unknown_address");
+  });
+});
+
+describe("POST /api/inbound/events (reputation)", () => {
+  it("rejects an unsigned request", async () => {
+    const res = await eventsPOST(
+      new Request("http://localhost/api/inbound/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: '{"type":"email.bounced","data":{}}',
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("records a bounce event", async () => {
+    const before = await db.reputationEvent.count();
+    const payload = JSON.stringify({
+      type: "email.bounced",
+      data: { email: "user@example.com", bounce: { bounce_type: "hard_bounce" } },
+    });
+    const res = await eventsPOST(
+      new Request("http://localhost/api/inbound/events", {
+        method: "POST",
+        headers: signedHeaders(payload, "msg_bounce1"),
+        body: payload,
+      }),
+    );
+    expect(res.status).toBe(200);
+    const events = await db.reputationEvent.findMany({ orderBy: { createdAt: "desc" } });
+    expect(events.length).toBe(before + 1);
+    expect(events[0]?.kind).toBe("bounce");
+  });
+
+  it("acknowledges unknown event types without recording", async () => {
+    const before = await db.reputationEvent.count();
+    const payload = JSON.stringify({ type: "email.opened", data: {} });
+    const res = await eventsPOST(
+      new Request("http://localhost/api/inbound/events", {
+        method: "POST",
+        headers: signedHeaders(payload, "msg_open1"),
+        body: payload,
+      }),
+    );
+    expect(res.status).toBe(200);
+    const after = await db.reputationEvent.count();
+    expect(after).toBe(before);
+  });
+});
+
+

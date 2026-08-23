@@ -9,4 +9,6 @@ export async function register() {
   startSweepScheduler();
   const { startRetentionScheduler } = await import("@/lib/retention-scheduler");
   startRetentionScheduler();
+  const { startReputationScheduler } = await import("@/lib/reputation-scheduler");
+  startReputationScheduler();
 }

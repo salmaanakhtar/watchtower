@@ -59,6 +59,8 @@ model User {
   watchItems     WatchItem[]
   payments       Payment[]
   events         Event[]
+  inboundAddresses InboundAddress[]
+  inboundMessages  InboundMessage[]
 }
 
 model Company {
@@ -86,6 +88,7 @@ model Document {
   user            User?            @relation(fields: [userId], references: [id])
   obligations     Obligation[]
   facts           ProvenanceFact[]
+  inboundMessages InboundMessage[]
 }
 
 // The core watchable entity: a durable obligation between the user and a
@@ -225,6 +228,75 @@ model Event {
 
   @@index([userId, createdAt])
   @@index([obligationId])
+}
+
+// ─── Phase 2: inbound email infrastructure (WT-11) ──────────────────────────
+
+// A per-user unique forwarding address (u-<token>@in.watchtower.salmaan.dev).
+// Token is random/unguessable; the address is the auth boundary for inbound.
+model InboundAddress {
+  id        String    @id @default(cuid())
+  userId    String
+  localPart String    @unique // "u-<token>" — the unique per-user address
+  domain    String // "in.watchtower.salmaan.dev"
+  token     String    @unique // the unguessable token (also in localPart)
+  active    Boolean   @default(true)
+  disabledAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  messages InboundMessage[]
+
+  @@index([userId, active])
+}
+
+// A received inbound email (WT-11). Row is created as soon as we acknowledge
+// the webhook, then filled in as the pipeline runs. Raw text is encrypted at
+// rest (WT-8); status drives quarantine/retry/ingest.
+model InboundMessage {
+  id              String    @id @default(cuid())
+  addressId       String? // null for messages not addressed to a known user
+  userId          String?
+  resendEmailId   String    @unique // Resend email_id (dedupe)
+  messageId       String? // RFC Message-ID
+  fromEmail       String? // sender (encrypted at rest)
+  fromName        String?
+  subject         String? // encrypted at rest
+  toAddress       String? // recipient address it was delivered to
+  receivedFor     String? // address the message was forwarded for
+  text            String? // encrypted at rest (plain-text body)
+  html            String? // encrypted at rest
+  headers         String? // encrypted at rest (JSON)
+  rawDownloadUrl  String? // Resend signed URL for the raw email (temporary)
+  contentSize     Int? // combined body+attachment bytes
+  status          String    @default("received") // received | fetched | quarantined | ingested | failed
+  quarantineReason String? // spam | rate_limited | unknown_address | too_large | no_content
+  spamScore       Float?
+  createdAt       DateTime  @default(now())
+  ingestedAt      DateTime?
+  documentId      String? // the Document created when ingested
+  failure         String? // last error detail
+
+  address  InboundAddress? @relation(fields: [addressId], references: [id])
+  user     User?           @relation(fields: [userId], references: [id])
+  document Document?       @relation(fields: [documentId], references: [id])
+
+  @@index([addressId, createdAt])
+  @@index([status, createdAt])
+}
+
+// WT-11: reputation events (bounces/complaints) observed from Resend webhooks
+// or the API, so the forwarding domain's health can be monitored. Append-only.
+model ReputationEvent {
+  id        String    @id @default(cuid())
+  kind      String // bounce | complaint | delivered | failed | suppressed
+  email     String? // encrypted at rest (the affected recipient address)
+  detail    String? // provider detail (bounce type, etc.), never PII
+  createdAt DateTime  @default(now())
+
+  @@index([kind, createdAt])
 }
 
 // WT-8: append-only audit trail for sensitive operations (admin auth/review,

@@ -2,11 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { analyzeText } from "@/lib/analysis";
 import { db } from "@/lib/db";
-import { toCanonical, toCanonicalStructured } from "@/lib/obligations";
 import { encryptField } from "@/lib/crypto";
 import { ipRateExceeded } from "@/lib/rate-limit";
 import { extractDocumentText } from "@/lib/extraction";
-import { structuredExtract } from "@/lib/llm-extract";
+import { persistCanonical } from "@/lib/ingest";
 import {
   contentHash,
   decodeUpload,
@@ -122,9 +121,14 @@ export async function POST(req: Request) {
           contentType: decoded.contentType,
           extractedText: extracted.text.slice(0, MAX_DECODED_CHARS),
           extractionMethod: extracted.method,
-          contentHash: contentHash(extracted.text),
+          contentHashValue: contentHash(extracted.text),
         });
-        return NextResponse.json({ id: submission.id, result, queued: false, obligation: canonical });
+        return NextResponse.json({
+          id: submission.id,
+          result,
+          queued: false,
+          obligation: canonical ? { id: canonical.obligationId ?? canonical.documentId } : null,
+        });
       }
 
       // Honest fallback: acknowledge the upload, don't fake a result. The
@@ -185,9 +189,14 @@ export async function POST(req: Request) {
       contentType: decoded.contentType,
       extractedText: decoded.decodedText.slice(0, MAX_DECODED_CHARS),
       extractionMethod: "raw",
-      contentHash: contentHash(decoded.decodedText),
+      contentHashValue: contentHash(decoded.decodedText),
     });
-    return NextResponse.json({ id: submission.id, result, queued: false, obligation: canonical });
+    return NextResponse.json({
+      id: submission.id,
+      result,
+      queued: false,
+      obligation: canonical ? { id: canonical.obligationId ?? canonical.documentId } : null,
+    });
   }
 
   const result = analyzeText(content);
@@ -211,107 +220,14 @@ export async function POST(req: Request) {
     contentType: contentType ?? "text/plain",
     extractedText: content,
     extractionMethod: "raw",
-    contentHash: contentHash(content),
+    contentHashValue: contentHash(content),
   });
 
-  return NextResponse.json({ id: submission.id, result, queued: false, obligation: canonical });
+  return NextResponse.json({
+    id: submission.id,
+    result,
+    queued: false,
+    obligation: canonical ? { id: canonical.obligationId ?? canonical.documentId } : null,
+  });
 }
 
-// WT-4/WT-3: persist the canonical obligation + provenance facts for a
-// submission. When LLM extraction is configured, the deterministic analysis
-// still drives the user-facing result, but the durable rows are enriched with
-// LLM structured extraction (ISO dates, per-field confidence, precise amounts).
-// Returns the created obligation id so clients can reference the durable row.
-async function persistCanonical(
-  submissionId: string,
-  result: ReturnType<typeof analyzeText>,
-  document: {
-    source: string;
-    filename: string | null;
-    contentType: string | null;
-    extractedText: string;
-    extractionMethod: string;
-    contentHash: string | null;
-  },
-): Promise<{ id: string } | null> {
-  try {
-    // WT-3: optional LLM structured extraction (env-gated, schema-validated,
-    // never throws). On success we map its ISO dates + confidence into the
-    // canonical rows; on any failure we fall back to the deterministic mapper.
-    const structured = await structuredExtract(document.extractedText.slice(0, 20_000));
-    const { obligation, facts } = structured
-      ? toCanonicalStructured(structured, {
-          source: document.source,
-          filename: document.filename,
-          contentType: document.contentType,
-          extractedText: document.extractedText,
-          extractionMethod: "llm",
-          contentHash: document.contentHash,
-        })
-      : toCanonical(result, {
-          source: document.source,
-          filename: document.filename,
-          contentType: document.contentType,
-          extractedText: document.extractedText,
-          extractionMethod: document.extractionMethod,
-          contentHash: document.contentHash,
-        });
-
-    const extractionMethod = structured ? "llm" : document.extractionMethod;
-    const created = await db.document.create({
-      data: {
-        source: document.source,
-        filename: document.filename,
-        contentType: document.contentType,
-        extractedText: encryptField(document.extractedText) ?? "",
-        extractionMethod,
-        contentHash: document.contentHash,
-        submissionId,
-        obligations: {
-          create: {
-            kind: obligation.kind,
-            counterpartyName: obligation.counterpartyName,
-            amountCents: obligation.amountCents,
-            currency: obligation.currency ?? "USD",
-            interval: obligation.interval,
-            amountConfidence: null,
-            startDate: obligation.startDate ? new Date(obligation.startDate) : null,
-            renewalDate: obligation.renewalDate ? new Date(obligation.renewalDate) : null,
-            noticeDeadlineDate: obligation.noticeDeadlineDate ? new Date(obligation.noticeDeadlineDate) : null,
-            expiryDate: obligation.expiryDate ? new Date(obligation.expiryDate) : null,
-            cancellationNoticeDays: obligation.cancellationNoticeDays,
-            autoRenews: obligation.autoRenews,
-            termsQuote: obligation.termsQuote,
-            riskType: obligation.riskType,
-            exposureLowCents: obligation.exposureLowCents,
-            exposureHighCents: obligation.exposureHighCents,
-            exposureAssumption: obligation.exposureAssumption,
-            dueDate: obligation.dueDate ? new Date(obligation.dueDate) : null,
-            verification: obligation.verification,
-            confidence: obligation.confidence,
-            status: "open",
-            facts: {
-              create: facts.map((f) => ({
-                label: f.label,
-                value: f.value,
-                quote: f.quote,
-                offsetStart: f.offsetStart,
-                offsetEnd: f.offsetEnd,
-                confidence: f.confidence,
-              })),
-            },
-          },
-        },
-      },
-      select: { id: true, obligations: { select: { id: true } } },
-    });
-
-    const obligationId = created.obligations[0]?.id ?? null;
-    return obligationId ? { id: obligationId } : null;
-  } catch (err) {
-    // Canonical persistence must never break the user-facing result. The
-    // submission row is already saved; log and degrade to the legacy shape.
-    console.error("[wt4] failed to persist canonical obligation", err);
-    return null;
-  }
-}
