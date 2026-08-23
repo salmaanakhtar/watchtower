@@ -52,11 +52,12 @@ Forwarding subdomain: **`in.watchtower.salmaan.dev`** (name.com DNS, Tailnet DNS
 - Sending domain: `watchtower.salmaan.dev` is its own Resend domain (id `017bf1ab-…`, eu-west-1) — `resend._domainkey.watchtower` TXT + `send.watchtower` MX/TXT added so `EMAIL_FROM=hello@watchtower.salmaan.dev` sends. (WT-6 worked only if Resend still allowed the subdomain; current Resend requires the subdomain verified — 403 otherwise.)
 
 **Resend setup:**
-1. `in.watchtower.salmaan.dev` exists in the account (id `8ef4a651-…`), capabilities sending+receiving **enabled** (receiving is the point; sending enabled only so verification can complete).
-2. **Receiving** enabled; Receiving record shows **verified**.
-3. **Webhook** — `https://in.watchtower.salmaan.dev/api/inbound/webhook`, event `email.received` (id `308f9bc3-…`).
-4. **Webhook** — `https://in.watchtower.salmaan.dev/api/inbound/events`, events `email.bounced`, `email.complained`, `email.delivered`, `email.failed`, `email.suppressed` (id `7c36d207-…`).
+1. `in.watchtower.salmaan.dev` exists in the account (id `f97a3b3d-…`; recreated 2026-08-23 after the original stayed stuck `pending` — same DKIM key, so DNS was untouched), capabilities sending+receiving **enabled** (receiving is the point; sending enabled only so verification can complete).
+2. **Receiving** enabled; Receiving record shows **verified** (mail is being accepted — check `/emails/receiving`).
+3. **Webhook** — `https://in.watchtower.salmaan.dev/api/inbound/webhook`, event `email.received` (id `69b78ebe-…`).
+4. **Webhook** — `https://in.watchtower.salmaan.dev/api/inbound/events`, events `email.bounced`, `email.complained`, `email.delivered`, `email.failed`, `email.suppressed` (id `f2c80fd7-…`).
 5. Each webhook has its **own** Svix signing secret (`whsec_…`); RESEND_WEBHOOK_SECRET holds both, comma-separated (app supports this since `f914470`).
+6. **Status 2026-08-23:** `watchtower.salmaan.dev` = verified (sending from `hello@watchtower.salmaan.dev` works). `in.watchtower…` DKIM/SPF records remain `pending` on Resend's side despite correct public DNS (even after domain recreation); Receiving is verified and emails arrive in Resend's receiving API, but **`email.received`/event webhook delivery had NOT fired as of 2026-08-23** — no svix attempts in the Traefik access log, app rows zero. If still silent: open the Resend dashboard → Webhooks → delivery attempts/errors (or support). The host watcher (`watchtower-inbound-watch.service/timer`) Discord-notifies when the domain flips verified, the first inbound message lands, or after 6h of no progress.
 
 > The webhooks point at `in.watchtower.salmaan.dev` — NOT `watchtower.salmaan.dev` (that host is Tailnet-private and resolves to 100.107.222.75; Resend needs a public endpoint). Public ingress = Traefik file router `watchtower-inbound-public` in `/opt/hermes/proxy/dynamic/watchtower-inbound.yaml` (Host `in.watchtower.salmaan.dev` && PathPrefix `/api/inbound`, priority 500, no tailscale middleware; wildcard `*.salmaan.dev` LE cert covers TLS). The service URL is the watchtower container's bridge IP, kept in sync by `hermes-watchtower-webhook-sync.{service,timer}` (script `/usr/local/lib/hermes-deployer/watchtower-webhook-sync.sh`). Every other path on the subdomain and everything on `watchtower.salmaan.dev` stays Tailnet-private.
 
