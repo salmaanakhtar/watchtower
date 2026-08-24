@@ -268,10 +268,10 @@ Exit criteria:
 - Watchlist dashboard with exposure ledger ("Money protected so far" with strict definitions).
 - First acquisition experiments (see §9) run to completion.
 
-**Status (2026-08-23):** Phase 1 shipped — all WT-1..WT-9 Done. Phase 2 started; Linear issues WT-10..WT-15.
+**Status (2026-08-23):** Phase 1 shipped — all WT-1..WT-9 Done. Phase 2 started; Linear issues WT-10..WT-15. **WT-11 shipped** (commit `48de397`, In Review — code complete; DNS/Resend dashboard + env steps pending, see `docs/DEPLOYMENT.md` §WT-11). Next: WT-12.
 
 #### Phase 2 work breakdown (Linear WT-10..WT-15)
-- **WT-11 (Urgent, do first)**: inbound email infra — forwarding subdomain + MX, SPF, DKIM, DMARC, SMTP→webhook (Resend Inbound), anti-abuse (rate limits, size caps, quarantine), reputation monitoring. Must land before any public inbound mail.
+- **WT-11 (Urgent, do first)**: inbound email infra — forwarding subdomain + MX, SPF, DKIM, DMARC, SMTP→webhook (Resend Inbound), anti-abuse (rate limits, size caps, quarantine), reputation monitoring. Must land before any public inbound mail. **→ shipped (In Review; code done, infra steps pending).**
 - **WT-12**: per-account unique forwarding addresses (`u-<token>@in.watchtower.salmaan.dev`), encrypted at rest (WT-8 crypto), settings UI with rotate/disable, auto-ingestion into the WT-3 pipeline → watch items with provenance.
 - **WT-13**: exposure/money-protected ledger — strict categories (prevented / recovered / avoided), every dollar traceable to an obligation event; dashboard header + drill-down.
 - **WT-14**: deadline reminder sweep (T-7 / T-1) wired to the watchlist lifecycle state machine, idempotent, reuses WT-6 Resend transport.

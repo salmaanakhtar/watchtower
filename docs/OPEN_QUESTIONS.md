@@ -26,8 +26,8 @@
 - ~~What should be deterministic vs LLM-driven?~~ **Answered (Phase 1):** deterministic = file handling, normalization, alert gating, scheduling, classification rules; LLM = structured extraction into the canonical schema, env-gated (see `docs/PHASE0_1_PLAN.md` §5.5).
 
 ## Phase 2 (recurring product)
-- Which inbound email provider (Resend Inbound vs self-hosted MX) gives the best deliverability + abuse controls at Phase 2 scale?
-- What is the right DMARC policy for the forwarding domain (p=quarantine vs reject) while user forwards are still being learned?
+- ~~Which inbound email provider (Resend Inbound vs self-hosted MX) gives the best deliverability + abuse controls at Phase 2 scale?~~ **Answered (WT-11, 2026-08-23):** Resend Inbound on subdomain `in.watchtower.salmaan.dev` — MX → Svix-signed webhook, Received Emails API for content, no self-hosted MX. Rationale in `docs/DECISIONS.md` (2026-08-23 WT-11 entry).
+- ~~What is the right DMARC policy for the forwarding domain (p=quarantine vs reject) while user forwards are still being learned?~~ **Answered (WT-11, 2026-08-23):** start `p=quarantine`; move to `p=reject` once bounce/complaint rates are learned (revisit trigger in DECISIONS.md).
 - How should the money-protected ledger handle counterfactual "prevented" dollars without overclaiming (precise attribution rules)?
 - Do users actually forward bills, or is the friction too high (email-forwarding assumption A6 needs real-world validation)?
 - What is the correct reminder cadence (T-7/T-1) without becoming spammy?

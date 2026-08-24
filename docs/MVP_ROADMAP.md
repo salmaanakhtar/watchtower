@@ -46,11 +46,12 @@ Add persistence:
 - Watchlist dashboard ✅ (WT-5)
 - Status / deadlines / exposure ✅ (WT-5)
 - Notes/history ✅ (WT-5)
-- **NEW:** email forwarding ingestion (per-account addresses + inbound infra)
-- **NEW:** exposure/money-protected ledger
-- **NEW:** deadline reminder sweep (T-7 / T-1)
+- **NEW:** email forwarding ingestion — inbound infra ✅ (WT-11: MX→Resend→webhook, anti-abuse, reputation), per-account addresses ⏳ (WT-12)
+- **NEW:** exposure/money-protected ledger ⏳ (WT-13)
+- **NEW:** deadline reminder sweep (T-7 / T-1) ⏳ (WT-14)
+- **NEW:** acquisition experiments ⏳ (WT-15, runs in parallel)
 
-This phase converts one-off utility into a recurring product.
+**Status (2026-08-23):** WT-11 shipped (commit `48de397`, In Review — needs DNS/Resend dashboard + env steps before public mail; see `docs/DEPLOYMENT.md` §WT-11). Next up: WT-12 (per-account forwarding addresses + settings UI + auto-ingestion).
 
 ## Phase 3 — Email forwarding
 Give each account a unique forwarding address.
