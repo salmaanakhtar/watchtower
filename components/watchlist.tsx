@@ -92,9 +92,14 @@ export function WatchlistView({
             {list.length === 1 ? "item" : "items"} being watched
           </p>
         </div>
-        <Link href="/" className={buttonClasses("secondary")} data-testid="analyze-more">
-          Analyze another document
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/forwarding" className={buttonClasses("secondary")} data-testid="forwarding-link">
+            Forwarding
+          </Link>
+          <Link href="/" className={buttonClasses("secondary")} data-testid="analyze-more">
+            Analyze another document
+          </Link>
+        </div>
       </header>
 
       {list.length === 0 ? (

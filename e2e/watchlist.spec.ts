@@ -76,6 +76,53 @@ test.describe("Watch flow (WT-5)", () => {
   });
 });
 
+test.describe("WT-12 email forwarding", () => {
+  test("provision, copy, rotate, and disable a forwarding address", async ({ page, context }) => {
+    // Sign in via the API to get a session cookie
+    const request = await context.request.post("http://127.0.0.1:3100/api/auth/request", {
+      data: { email: `wt12-${Date.now()}@example.com` },
+    });
+    const { token } = await request.json();
+    const resp = await context.request.get(
+      `http://127.0.0.1:3100/api/auth/verify/${token}`,
+      { maxRedirects: 0 },
+    );
+    const setCookie = resp.headers()["set-cookie"] ?? "";
+    const session = setCookie.match(/wt_session=([^;]+)/)?.[1] ?? "";
+    await context.addCookies([
+      { name: "wt_session", value: decodeURIComponent(session), url: "http://127.0.0.1:3100" },
+    ]);
+
+    await page.goto("/forwarding");
+    await expect(page.getByTestId("forwarding-empty")).toBeVisible({ timeout: 15_000 });
+
+    // Provision a fresh address
+    await page.getByTestId("provision-address").click();
+    await expect(page.getByTestId("forwarding-address")).toBeVisible({ timeout: 15_000 });
+    const address = (await page.getByTestId("forwarding-address").textContent()) ?? "";
+    expect(address).toMatch(/^u-[0-9a-f]{32}@in\.watchtower\.salmaan\.dev$/);
+
+    // The forwarding link is present on the watchlist page
+    await page.goto("/watchlist");
+    await expect(page.getByTestId("forwarding-link")).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId("forwarding-link").click();
+    await expect(page).toHaveURL(/\/forwarding/, { timeout: 15_000 });
+
+    // Rotate: new address, old one disabled
+    await page.getByTestId("rotate-address").click();
+    await expect(page.getByTestId("forwarding-address")).not.toContainText(address, {
+      timeout: 15_000,
+    });
+    const rotated = (await page.getByTestId("forwarding-address").textContent()) ?? "";
+    expect(rotated).not.toBe(address);
+    expect(rotated).toMatch(/^u-[0-9a-f]{32}@in\.watchtower\.salmaan\.dev$/);
+
+    // Disable: address disappears, empty state returns
+    await page.getByTestId("disable-address").click();
+    await expect(page.getByTestId("forwarding-empty")).toBeVisible({ timeout: 15_000 });
+  });
+});
+
 test.describe("WT-6 email + notifications", () => {
   test("magic-link email round trip via stub sender", async ({ page, context }) => {
     await context.request.post("http://127.0.0.1:3100/api/admin/test-email-stub", {
