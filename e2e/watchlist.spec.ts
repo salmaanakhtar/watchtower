@@ -123,6 +123,58 @@ test.describe("WT-12 email forwarding", () => {
   });
 });
 
+test.describe("WT-13 money-protected ledger", () => {
+  test("resolve records money protected; ledger page shows it traced to the source", async ({
+    page,
+    context,
+  }) => {
+    await context.addCookies([
+      { name: "wt_variant", value: "A", url: "http://127.0.0.1:3100" },
+    ]);
+    await page.goto("/");
+    await page.getByTestId("paste-input").fill(
+      "Your Adobe plan renews on October 14 at $19.99/month. Cancel before then.",
+    );
+    await page.getByTestId("consent-input").check();
+    await page.getByTestId("analyze-button").click();
+    await expect(page.getByTestId("result-card")).toBeVisible({ timeout: 15_000 });
+
+    // Sign in and watch the obligation
+    await page.getByTestId("watch-button").click();
+    await expect(page.getByTestId("watch-email-form")).toBeVisible({ timeout: 15_000 });
+    const email = `wt13-${Date.now()}@example.com`;
+    await page.getByTestId("watch-email-input").fill(email);
+    await page.getByTestId("watch-email-submit").click();
+    await expect(page.getByTestId("watch-email-sent")).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId("watch-email-sent").locator("a").click();
+    await expect(page).toHaveURL(/\/watch\?obligation=/, { timeout: 15_000 });
+    await page.getByTestId("view-watchlist").click();
+
+    // Resolve the item -> records a "prevented" entry
+    await expect(page.getByTestId("watchlist")).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId("resolve-button").click();
+    await expect(page.getByTestId("status-chip")).toContainText("Resolved", {
+      timeout: 15_000,
+    });
+
+    // Watchlist header shows the money-protected total and links to the ledger
+    await expect(page.getByTestId("ledger-link")).toContainText("Money protected");
+    await page.getByTestId("ledger-link").click();
+    await expect(page).toHaveURL(/\/ledger/, { timeout: 15_000 });
+
+    // Ledger shows the total and the entry traced to Adobe
+    await expect(page.getByTestId("ledger-total")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("ledger-category-prevented")).toContainText("$240");
+    await expect(page.getByTestId("ledger-entry")).toContainText("Adobe");
+    await expect(page.getByTestId("ledger-entry")).toContainText("Prevented");
+  });
+
+  test("ledger requires a session", async ({ page }) => {
+    await page.goto("/ledger");
+    await expect(page).toHaveURL(/\?auth=required/, { timeout: 15_000 });
+  });
+});
+
 test.describe("WT-6 email + notifications", () => {
   test("magic-link email round trip via stub sender", async ({ page, context }) => {
     await context.request.post("http://127.0.0.1:3100/api/admin/test-email-stub", {

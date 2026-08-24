@@ -8,6 +8,7 @@ import { VariantProvider } from "@/components/variant-provider";
 import { ResultCard } from "@/components/result-card";
 import { WatchButton } from "@/components/watch-button";
 import { WatchlistView, type WatchlistItem } from "@/components/watchlist";
+import { LedgerView } from "@/components/ledger";
 import type { AnalysisResult } from "@/lib/analysis";
 
 function InputZoneHarness({
@@ -309,5 +310,98 @@ describe("WatchlistView", () => {
       expect.objectContaining({ method: "PATCH" }),
     );
     vi.unstubAllGlobals();
+  });
+});
+
+const ledger = {
+  totalCents: 34500,
+  currency: "USD",
+  preventedCents: 24000,
+  recoveredCents: 2500,
+  avoidedCents: 8000,
+  count: 3,
+  entries: [
+    {
+      id: "le1",
+      category: "prevented" as const,
+      amountCents: 24000,
+      currency: "USD",
+      note: "Marked resolved — projected cost avoided.",
+      source: "manual",
+      verification: "verified",
+      recordedAt: "2026-08-25T00:00:00.000Z",
+      obligation: {
+        id: "obl_1",
+        kind: "subscription",
+        counterpartyName: "Adobe",
+        exposureAssumption: "$19.99/month × 12 months = $240/year if this renews",
+        exposureLowCents: 24000,
+        exposureHighCents: 24000,
+      },
+    },
+    {
+      id: "le2",
+      category: "recovered" as const,
+      amountCents: 2500,
+      currency: "USD",
+      note: "Got a partial refund",
+      source: "manual",
+      verification: "verified",
+      recordedAt: "2026-08-24T00:00:00.000Z",
+      obligation: {
+        id: "obl_2",
+        kind: "refund",
+        counterpartyName: "Netflix",
+        exposureAssumption: null,
+        exposureLowCents: null,
+        exposureHighCents: null,
+      },
+    },
+    {
+      id: "le3",
+      category: "avoided" as const,
+      amountCents: 8000,
+      currency: "USD",
+      note: "Stopped the price increase",
+      source: "manual",
+      verification: "pending",
+      recordedAt: "2026-08-23T00:00:00.000Z",
+      obligation: {
+        id: "obl_3",
+        kind: "bill",
+        counterpartyName: "Comcast",
+        exposureAssumption: null,
+        exposureLowCents: null,
+        exposureHighCents: null,
+      },
+    },
+  ],
+};
+
+describe("LedgerView (WT-13)", () => {
+  it("renders the total and per-category breakdown", () => {
+    render(<LedgerView user={{ email: "me@example.com" }} ledger={ledger} />);
+    expect(screen.getByTestId("ledger-total")).toHaveTextContent("$345");
+    expect(screen.getByTestId("ledger-category-prevented")).toHaveTextContent("$240");
+    expect(screen.getByTestId("ledger-category-recovered")).toHaveTextContent("$25");
+    expect(screen.getByTestId("ledger-category-avoided")).toHaveTextContent("$80");
+  });
+
+  it("renders each entry with drill-down provenance", () => {
+    render(<LedgerView user={{ email: "me@example.com" }} ledger={ledger} />);
+    expect(screen.getAllByTestId("ledger-entry")).toHaveLength(3);
+    expect(screen.getByText("Adobe")).toBeInTheDocument();
+    expect(screen.getByText("Netflix")).toBeInTheDocument();
+    expect(screen.getByText("pending verification")).toBeInTheDocument();
+  });
+
+  it("shows the empty state", () => {
+    render(
+      <LedgerView
+        user={{ email: "me@example.com" }}
+        ledger={{ ...ledger, totalCents: 0, preventedCents: 0, recoveredCents: 0, avoidedCents: 0, count: 0, entries: [] }}
+      />,
+    );
+    expect(screen.getByTestId("ledger-empty")).toHaveTextContent("No protected money yet");
   });
 });

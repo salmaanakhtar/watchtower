@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { parseSessionToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { decryptField } from "@/lib/crypto";
+import { getLedgerSummary } from "@/lib/ledger";
 import { WatchlistView, type WatchlistItem } from "@/components/watchlist";
 
 export const dynamic = "force-dynamic";
@@ -96,5 +97,11 @@ export default async function WatchlistPage() {
     },
   }));
 
-  return <WatchlistView user={{ id: user.id, email: displayEmail ?? "" }} items={items} />;
+  return (
+    <WatchlistView
+      user={{ id: user.id, email: displayEmail ?? "" }}
+      items={items}
+      ledgerTotalCents={(await getLedgerSummary(userId)).totalCents}
+    />
+  );
 }

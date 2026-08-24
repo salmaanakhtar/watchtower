@@ -167,3 +167,12 @@
 **Why:** WT-11's pipeline was fully built but had no way to create addresses — every real message was quarantined `unknown_address`. Provisioning per-user addresses (rather than one shared address) keeps ownership unambiguous, and rotate/disable give users control + an abuse escape hatch.
 
 **Revisit when:** Inbound mail is proven at volume — consider limiting total addresses per user, rate capping provisioning, or moving to per-company addresses (Phase 3) if dedupe/ownership needs change.
+
+---
+
+## 2026-08-25 — WT-13: Money-protected ledger shipped (strict categories, traceable dollars)
+**Decision:** Ship the money-protected ledger — the north-star value metric — as `LedgerEntry` rows with three strict categories: `prevented` (projected cost avoided by acting before a charge/deadline; a counterfactual, labeled a projection and never counted as recovered), `recovered` (realized refund/credit/corrected charge — always user- or pipeline-supplied, never derived from the obligation), `avoided` (a price increase/incorrect charge stopped on the current bill). Every entry links to its obligation (and through it, the source document + provenance), so each claimed dollar is traceable to a verified event. API: `GET/POST /api/ledger` (same auth as the watchlist; ownership via the obligation's `userId` OR a watch item). UI: `/ledger` page (total + per-category breakdown with definitions) and a "Money protected: $X" link in the watchlist header. Resolving a watch item auto-records a `prevented` entry from the obligation's conservative low exposure (idempotent via a `(userId, obligationId, category)` unique index). Migration `20260824221313_wt13_ledger`.
+
+**Why:** "Money protected" is the metric that makes value visible (PRODUCT_BRIEF north-star), and §8/§10 require claims to be defensible — a projection must never masquerade as recovered money. Anchoring each dollar to an obligation keeps the ledger auditable before any aggregate marketing claim. Auto-recording on resolve turns a natural user action (marking an obligation done) into the ledger, so the metric fills without a separate data-entry burden.
+
+**Revisit when:** Phase 8 outcome-verification loops can confirm recovered amounts post-action; or when aggregate "saved $X" marketing claims go out — then add an admin-verified flag and a public attestation view.

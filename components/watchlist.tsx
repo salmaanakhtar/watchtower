@@ -48,9 +48,11 @@ function formatCents(cents: number | null): string | null {
 export function WatchlistView({
   user,
   items,
+  ledgerTotalCents = 0,
 }: {
   user: { id: string; email: string | null };
   items: WatchlistItem[];
+  ledgerTotalCents?: number;
 }) {
   const [list, setList] = useState<WatchlistItem[]>(items);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -93,6 +95,16 @@ export function WatchlistView({
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/ledger"
+            className={buttonClasses("secondary")}
+            data-testid="ledger-link"
+            title="Money protected so far — traceable to your watched obligations"
+          >
+            {ledgerTotalCents > 0
+              ? `Money protected: $${Math.round(ledgerTotalCents / 100).toLocaleString("en-US")}`
+              : "Money protected"}
+          </Link>
           <Link href="/forwarding" className={buttonClasses("secondary")} data-testid="forwarding-link">
             Forwarding
           </Link>

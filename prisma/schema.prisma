@@ -61,6 +61,7 @@ model User {
   events         Event[]
   inboundAddresses InboundAddress[]
   inboundMessages  InboundMessage[]
+  ledgerEntries    LedgerEntry[]
 }
 
 model Company {
@@ -131,6 +132,7 @@ model Obligation {
   deadlines    Deadline[]
   payments     Payment[]
   events       Event[]
+  ledgerEntries LedgerEntry[]
 
   @@index([userId, status])
   @@index([dueDate])
@@ -210,6 +212,39 @@ model Payment {
   company    Company?    @relation(fields: [companyId], references: [id])
   obligation Obligation? @relation(fields: [obligationId], references: [id])
 
+  @@index([obligationId])
+}
+
+// WT-13: the money-protected ledger — the north-star value metric ("money
+// protected so far", PRODUCT_BRIEF). Strict categories so claims stay
+// defensible (PHASE0_1_PLAN §8, §10):
+//   prevented  — projected cost avoided by acting before a charge/deadline
+//                (e.g. cancelled before an auto-renewal). Counterfactual:
+//                labeled a projection in the UI, never "recovered".
+//   recovered  — realized money back (refund, credit, corrected charge).
+//   avoided    — a price increase / incorrect charge stopped (realized on the
+//                bill, distinct from prevented's hypothetical charge).
+// Every entry links to its obligation (and thus its document + provenance),
+// so every claimed dollar is traceable to a verified event. Idempotent
+// creation: one entry per (obligationId, category) via the unique index.
+model LedgerEntry {
+  id             String    @id @default(cuid())
+  userId         String
+  obligationId   String
+  category       String // prevented | recovered | avoided
+  amountCents    Int // always integer cents — never floats
+  currency       String    @default("USD")
+  note           String? // free-form context from the user or the pipeline
+  source         String    @default("manual") // manual | ingest | admin
+  verification   String    @default("verified") // verified | pending
+  recordedAt     DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+
+  user       User        @relation(fields: [userId], references: [id])
+  obligation Obligation @relation(fields: [obligationId], references: [id])
+
+  @@unique([userId, obligationId, category]) // WT-13: idempotence per category
+  @@index([userId, recordedAt])
   @@index([obligationId])
 }
 

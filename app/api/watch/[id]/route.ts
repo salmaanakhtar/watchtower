@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { parseSessionToken } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { recordPreventedFromObligation } from "@/lib/ledger";
 
 export const runtime = "nodejs";
 
@@ -80,5 +81,20 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     },
   });
 
-  return NextResponse.json({ watchItem: updated });
+  // WT-13: resolving an obligation records a "prevented" ledger entry
+  // (projected cost avoided). Idempotent — no double counting. The response
+  // carries it so the UI can show "Money protected" on resolve.
+  let ledgerEntry = null;
+  let ledgerCreated = false;
+  if (updated.status === "resolved") {
+    const result = await recordPreventedFromObligation(
+      userId,
+      updated.obligationId,
+      parsed.data.note ?? "Marked resolved — projected cost avoided.",
+    );
+    ledgerEntry = result.entry;
+    ledgerCreated = result.created;
+  }
+
+  return NextResponse.json({ watchItem: updated, ledgerEntry, ledgerCreated });
 }
