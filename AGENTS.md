@@ -15,7 +15,7 @@ Watchtower is an agentic SaaS platform that protects users from quietly losing m
 
 ## Repositories & issue tracking
 - **GitHub**: https://github.com/salmaanakhtar/watchtower (branch `main` is the trunk; commit directly to `main`, no feature branches).
-- **Linear**: Workspace `salmaanakhtar`, team `Watchtower` (key `WT`), project `Phase 0/1 — Validate & Ship`.
+- **Linear**: Workspace `salmaanakhtar`, team `Watchtower` (key `WT`). Projects: `Phase 0/1 — Validate & Ship`, `Phase 2 — Recurring Product`. Views (pinned to Home): `Phase 2 — Open Work`, `All Watchtower Open`, `Phase 2 — Done`.
   - Linear is the source of truth for planning and issue tracking. It should be used *alongside* the docs to keep the project organized.
   - Labels: `phase-0`, `phase-1`, `phase-2`, `infrastructure`, `design-language`, `security-privacy`, `growth`, `blocker`, `decision-needed`, `ai-agent`, `extraction`, `ingestion`, `watchlist`, `notifications`, `p0`/`p1`/`p2`.
   - Workflow states: Backlog -> Todo -> In Progress -> In Review -> Done (Canceled / Duplicate also available).
