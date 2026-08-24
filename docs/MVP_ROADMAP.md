@@ -46,12 +46,12 @@ Add persistence:
 - Watchlist dashboard ✅ (WT-5)
 - Status / deadlines / exposure ✅ (WT-5)
 - Notes/history ✅ (WT-5)
-- **NEW:** email forwarding ingestion — inbound infra ✅ (WT-11: MX→Resend→webhook, anti-abuse, reputation), per-account addresses ⏳ (WT-12)
+- **NEW:** email forwarding ingestion — inbound infra ✅ (WT-11: MX→Resend→webhook, anti-abuse, reputation), per-account addresses ✅ (WT-12: provision/rotate/disable + settings UI + auto-ingestion)
 - **NEW:** exposure/money-protected ledger ⏳ (WT-13)
 - **NEW:** deadline reminder sweep (T-7 / T-1) ⏳ (WT-14)
 - **NEW:** acquisition experiments ⏳ (WT-15, runs in parallel)
 
-**Status (2026-08-23):** WT-11 shipped (commit `48de397`, In Review — needs DNS/Resend dashboard + env steps before public mail; see `docs/DEPLOYMENT.md` §WT-11). Next up: WT-12 (per-account forwarding addresses + settings UI + auto-ingestion).
+**Status (2026-08-25):** WT-11 shipped (commit `48de397`) + verified live 2026-08-25 — public webhook endpoints answer correctly (`e2e-inbound.sh` all PASS), messages land as `InboundMessage` rows (quarantined `unknown_address` until an address exists). **WT-12 shipped** (commit `6473984`): per-account forwarding addresses (`u-<token>@in.watchtower.salmaan.dev`) with provision/rotate/disable, settings UI at `/forwarding`, linked from the watchlist; a forwarded message now auto-ingests through the WT-3 pipeline into a watch item (provenance `source=forward`, anti-abuse gates + dedupe apply). Next up: WT-13 (exposure/money-protected ledger).
 
 ## Phase 3 — Email forwarding
 Give each account a unique forwarding address.

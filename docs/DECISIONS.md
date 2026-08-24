@@ -152,9 +152,18 @@
 
 ---
 
-## 2026-08-23 � WT-11: Inbound email infra shipped (Resend Inbound + MX webhook)
-**Decision:** Ship inbound email via Resend Inbound on subdomain in.watchtower.salmaan.dev � MX (lowest priority on the subdomain only, never the root), SPF (Resend's include), DMARC `p=quarantine` (not reject, while user forwards are being learned), plus a Svix-signed `email.received` webhook (`/api/inbound/webhook`) that fetches full content via the Received Emails API and runs it through the shared WT-3/4 ingestion pipeline (Document source `forward` + obligation + watch item). Anti-abuse: 50 msgs/address/day cap, 10MB total cap, unknown/disabled addresses quarantined (never bounced), unsubscribe subjects/bodies quarantined, content-hash dedupe. Reputation: bounce/complaint events (`/api/inbound/events`) stored in `ReputationEvent`; daily sweep alerts `REPUTATION_ALERT_EMAIL` when complaint rate > 2% or bounce > 5% over 7 days.
+## 2026-08-23 � WT-11: Inbound email infra shipped (Resend Inbound + MX webhook)
+**Decision:** Ship inbound email via Resend Inbound on subdomain in.watchtower.salmaan.dev � MX (lowest priority on the subdomain only, never the root), SPF (Resend's include), DMARC `p=quarantine` (not reject, while user forwards are being learned), plus a Svix-signed `email.received` webhook (`/api/inbound/webhook`) that fetches full content via the Received Emails API and runs it through the shared WT-3/4 ingestion pipeline (Document source `forward` + obligation + watch item). Anti-abuse: 50 msgs/address/day cap, 10MB total cap, unknown/disabled addresses quarantined (never bounced), unsubscribe subjects/bodies quarantined, content-hash dedupe. Reputation: bounce/complaint events (`/api/inbound/events`) stored in `ReputationEvent`; daily sweep alerts `REPUTATION_ALERT_EMAIL` when complaint rate > 2% or bounce > 5% over 7 days.
 
 **Why:** Email forwarding is the highest-leverage recurring-ingestion mechanism (assumption A6); Resend Inbound is a single MX + webhook (no self-hosted MX to keep patched), and the subdomain keeps inbound MX completely separate from the sending domain so provider reputation is not coupled.
 
 **Revisit when:** Phase 2 proves forwarding demand; then add per-account address generation UI (WT-12) and possibly DMARC `p=reject` once bounce/complaint rates are learned.
+
+---
+
+## 2026-08-25 — WT-12: Per-user forwarding addresses shipped (provision/rotate/disable + settings UI)
+**Decision:** Each user gets one active `u-<token>@in.watchtower.salmaan.dev` address, provisioned idempotently on demand (`lib/forward-address.ts` + `POST/GET /api/forwarding`), managed from a `/forwarding` settings page (create/copy/rotate/disable) linked from the watchlist. The local part is a 128-bit random token with no PII (not encrypted at rest); the address IS the auth boundary — `processInboundWebhook` (WT-11) resolves the recipient address to its owner and auto-ingests through the WT-3 pipeline into a watch item (source `forward`), with anti-abuse gates and content-hash dedupe. Rotate disables the old address immediately and issues a fresh one; disable stops inbound entirely. Verified live 2026-08-25: `e2e-inbound.sh` all PASS on the VPS, messages land as `InboundMessage` rows (quarantined `unknown_address` before any address exists).
+
+**Why:** WT-11's pipeline was fully built but had no way to create addresses — every real message was quarantined `unknown_address`. Provisioning per-user addresses (rather than one shared address) keeps ownership unambiguous, and rotate/disable give users control + an abuse escape hatch.
+
+**Revisit when:** Inbound mail is proven at volume — consider limiting total addresses per user, rate capping provisioning, or moving to per-company addresses (Phase 3) if dedupe/ownership needs change.
