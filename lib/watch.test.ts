@@ -242,7 +242,6 @@ describe("POST /api/watch + GET /api/watchlist (WT-5)", () => {
       }),
     );
     const firstJson = await first.json();
-    console.log("FIRST", JSON.stringify(firstJson));
     const again = await watchPOST(
       new Request("http://localhost/api/watch", {
         method: "POST",

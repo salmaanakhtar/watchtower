@@ -264,4 +264,81 @@ test.describe("WT-6 email + notifications", () => {
   });
 });
 
+test.describe("WT-14 deadline reminders", () => {
+  test("a watch item with a near deadline generates exactly one reminder and advances the lifecycle", async ({
+    page,
+    context,
+  }) => {
+    await context.addCookies([
+      { name: "wt_variant", value: "A", url: "http://127.0.0.1:3100" },
+    ]);
+    await page.goto("/");
+    // Inside the T-7 window. Use a human-style month-day deadline that the
+    // deterministic analyzer recognizes (it doesn't parse ISO dates).
+    const near = new Date(Date.now() + 5 * 86_400_000);
+    const monthDay = near.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+    await page.getByTestId("paste-input").fill(
+      `Your Adobe plan renews on ${monthDay} at $19.99/month. Cancel before then.`,
+    );
+    await page.getByTestId("consent-input").check();
+    await page.getByTestId("analyze-button").click();
+    await expect(page.getByTestId("result-card")).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId("watch-button").click();
+    await expect(page.getByTestId("watch-email-form")).toBeVisible({ timeout: 15_000 });
+    const email = `wt14-${Date.now()}@example.com`;
+    await page.getByTestId("watch-email-input").fill(email);
+    await page.getByTestId("watch-email-submit").click();
+    await expect(page.getByTestId("watch-email-sent")).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId("watch-email-sent").locator("a").click();
+    await expect(page).toHaveURL(/\/watch\?obligation=/, { timeout: 15_000 });
+
+    // Capture the watch item id from the watchlist (data-item-id).
+    await page.getByTestId("view-watchlist").click();
+    await expect(page.getByTestId("watchlist")).toBeVisible({ timeout: 15_000 });
+    const watchItemId = await page.getByTestId("watchlist-item").getAttribute("data-item-id");
+    expect(watchItemId).toBeTruthy();
+
+    // Enable the stub sender, then trigger the sweep.
+    await context.request.post("http://127.0.0.1:3100/api/admin/test-email-stub", {
+      data: { enabled: true },
+    });
+    try {
+      const sweep = await context.request.get("http://127.0.0.1:3100/api/notify/sweep");
+      const stats = await sweep.json();
+      expect(stats.sent).toBeGreaterThanOrEqual(1);
+
+      const captured = await context.request.get("http://127.0.0.1:3100/api/admin/test-email-stub");
+      const { emails } = await captured.json();
+      const mine = (emails as { to: string; subject: string; text: string }[]).find(
+        (e) => e.to === email && e.text.includes("Adobe"),
+      );
+      expect(mine).toBeTruthy();
+      expect(mine!.subject).toContain("Adobe");
+
+      // The item advanced from open → upcoming (reminder sent at T-7).
+      const list = await context.request.get("http://127.0.0.1:3100/api/watchlist");
+      const { watchItems } = await list.json();
+      const item = (watchItems as { id: string; status: string }[]).find(
+        (w) => w.id === watchItemId,
+      );
+      expect(item).toBeTruthy();
+      expect(item!.status).toBe("upcoming");
+
+      // A second sweep must not re-send (idempotent cadence guard). Count
+      // only reminder emails (the magic-link email also goes to this address).
+      await context.request.get("http://127.0.0.1:3100/api/notify/sweep");
+      const captured2 = await context.request.get("http://127.0.0.1:3100/api/admin/test-email-stub");
+      const { emails: emails2 } = await captured2.json();
+      const reminders = (emails2 as { to: string; subject: string }[]).filter(
+        (e) => e.to === email && e.subject.includes("Adobe"),
+      ).length;
+      expect(reminders).toBe(1);
+    } finally {
+      await context.request.post("http://127.0.0.1:3100/api/admin/test-email-stub", {
+        data: { enabled: false },
+      });
+    }
+  });
+});
+
 

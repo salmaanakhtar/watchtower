@@ -129,7 +129,7 @@ model Obligation {
   counterparty Company?          @relation(fields: [counterpartyId], references: [id])
   facts        ProvenanceFact[]
   watchItems   WatchItem[]
-  deadlines    Deadline[]
+  noticeDeadlines NoticeDeadline[]
   payments     Payment[]
   events       Event[]
   ledgerEntries LedgerEntry[]
@@ -169,6 +169,7 @@ model WatchItem {
   deadline    DateTime?
   nextCheckAt DateTime?
   notifiedAt  DateTime? // last notification sent
+  lastNotifiedCadence Int? // WT-14: the cadence (days-before) of the last reminder; prevents duplicate sends across scheduler restarts
   userNote    String? // user correction/note (WT-5)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -182,7 +183,11 @@ model WatchItem {
 }
 
 // Deadlines attached to an obligation (a contract may have several).
-model Deadline {
+// WT-14: the notification sweep consumes these via nearest-deadline
+// selection. Rows are created by the extraction pipeline (WT-3) mapping
+// cancellation/notice dates; a legacy `Deadline` table from WT-4 was
+// renamed here because the reminder scheduler is its first real consumer.
+model NoticeDeadline {
   id          String    @id @default(cuid())
   obligationId String
   kind        String    @default("deadline") // notice | renewal | expiry | payment | other

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { parseSessionToken } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { initialStatusFromDeadline } from "@/lib/notify-sweep";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
 
   const obligation = await db.obligation.findUnique({
     where: { id: parsed.data.obligationId },
-    select: { id: true, userId: true, kind: true, counterpartyName: true },
+    select: { id: true, userId: true, kind: true, counterpartyName: true, dueDate: true, renewalDate: true },
   });
   if (!obligation) {
     return NextResponse.json({ error: "Obligation not found" }, { status: 404 });
@@ -52,10 +53,13 @@ export async function POST(req: Request) {
     return res;
   }
 
+  // WT-14: start the lifecycle in the right state (deadline already past /
+  // inside the notify window) instead of defaulting to "open".
+  const initialStatus = initialStatusFromDeadline(obligation.dueDate ?? obligation.renewalDate);
   const watchItem = await db.watchItem.upsert({
     where: { userId_obligationId: { userId, obligationId: obligation.id } },
-    update: { status: "open" },
-    create: { userId, obligationId: obligation.id, status: "open" },
+    update: { status: initialStatus },
+    create: { userId, obligationId: obligation.id, status: initialStatus },
   });
 
   return NextResponse.json({ watchItem, needsAccount: false }, { status: 201 });

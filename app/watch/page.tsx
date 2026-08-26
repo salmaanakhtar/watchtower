@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { parseSessionToken } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { initialStatusFromDeadline } from "@/lib/notify-sweep";
 import { WatchConfirmation } from "@/components/watch-confirmation";
 
 export const dynamic = "force-dynamic";
@@ -39,14 +40,19 @@ export default async function WatchPage({
       exposureAssumption: true,
       verification: true,
       confidence: true,
+      dueDate: true,
+      renewalDate: true,
     },
   });
   if (!obligation) redirect("/watchlist");
 
+  // WT-14: start the lifecycle in the right state (deadline already past /
+  // inside the notify window) instead of defaulting to "open".
+  const initialStatus = initialStatusFromDeadline(obligation.dueDate ?? obligation.renewalDate);
   const watchItem = await db.watchItem.upsert({
     where: { userId_obligationId: { userId, obligationId } },
-    update: { status: "open" },
-    create: { userId, obligationId, status: "open" },
+    update: { status: initialStatus },
+    create: { userId, obligationId, status: initialStatus },
   });
 
   // Log the lifecycle event once.

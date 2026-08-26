@@ -151,6 +151,75 @@ export function deadlineEmail(input: {
   return { to: input.to, subject, text, html };
 }
 
+/** Shared payload for reminder emails (deadline + renewal). */
+export interface ReminderEmailInput {
+  to: string;
+  watchItemId: string;
+  obligation: Pick<
+    Obligation,
+    | "counterpartyName"
+    | "kind"
+    | "amountCents"
+    | "currency"
+    | "exposureLowCents"
+    | "exposureHighCents"
+    | "exposureAssumption"
+    | "dueDate"
+    | "riskType"
+  >;
+  deadlineLabel: string;
+  daysLeft: number;
+  reason: string;
+  unwatchUrl: string;
+  watchlistUrl: string;
+}
+
+/**
+ * Renewal reminder for obligations without a hard deadline: "next renewal in
+ * X days" instead of "Due in X days". Same card as the deadline email with a
+ * renewal line so the recurring case stays plain-text-first (DESIGN_LANGUAGE
+ * §8).
+ */
+export function renewalReminderEmail(input: ReminderEmailInput): EmailMessage {
+  const { obligation } = input;
+  const name = obligation.counterpartyName ?? "Your item";
+  const exposure = formatCents(obligation.exposureLowCents ?? obligation.exposureHighCents);
+  const subject = `${input.reason}: ${name} (${input.deadlineLabel})`;
+  const moneyLine = exposure ? `Potential cost: ${exposure}` : "Potential cost: not known";
+
+  const text = [
+    `${name} — action may be needed`,
+    "",
+    `${input.reason}.`,
+    `Next renewal: ${input.deadlineLabel}.`,
+    moneyLine,
+    "",
+    "See it in your watchlist:",
+    input.watchlistUrl,
+    "",
+    "No longer relevant? Stop watching this item:",
+    input.unwatchUrl,
+    "",
+    "You're getting this because you asked Watchtower to watch this item. We only send email about things you watch.",
+  ].join("\n");
+
+  const html = [
+    `<div style="max-width:520px;margin:0 auto;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1c1c1c">`,
+    `<p style="margin:0 0 4px;font-size:18px;font-weight:600">${esc(name)}</p>`,
+    `<p style="margin:0 0 12px;font-size:13px;color:#b45309">${esc(input.reason)}</p>`,
+    `<table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-size:14px">`,
+    `<tr><td style="padding:6px 0;color:#6b7280">Next renewal</td><td style="padding:6px 0;text-align:right;font-weight:600">${esc(input.deadlineLabel)}</td></tr>`,
+    `<tr><td style="padding:6px 0;color:#6b7280">${moneyLine.split(":")[0]}</td><td style="padding:6px 0;text-align:right;font-weight:600">${esc(moneyLine.split(":")[1] ?? "")}</td></tr>`,
+    `</table>`,
+    `<p style="margin:0 0 16px"><a href="${esc(input.watchlistUrl)}" style="display:inline-block;background:#2f6f4f;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600">View in your watchlist</a></p>`,
+    `<p style="margin:0 0 4px;font-size:12px;color:#6b7280;line-height:1.5">No longer relevant? <a href="${esc(input.unwatchUrl)}" style="color:#6b7280">Stop watching this item</a>.</p>`,
+    `<p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.5">You're getting this because you asked Watchtower to watch this item. We only send email about things you watch.</p>`,
+    `</div>`,
+  ].join("\n");
+
+  return { to: input.to, subject, text, html };
+}
+
 /** Format cents as a USD string, or null when there is no amount. */
 export function formatCents(cents: number | null | undefined): string | null {
   if (cents === null || cents === undefined) return null;
@@ -178,8 +247,12 @@ export async function sendEmail(message: EmailMessage): Promise<SendResult> {
   }
 
   if (!apiKey || !from) {
-    console.log(`[wt6:email] (no-op dev send) to=${message.to} subject="${message.subject}"`);
-    return { delivered: false, providerId: null, message };
+    // Dev/tests without a provider key: simulate a delivered email (the
+    // previous no-op "delivered:false" made sendNotifications record the
+    // send-state before the provider, so a dev without Resend keys never saw
+    // a delivered reminder — this matches the stub sender's semantics).
+    console.log(`[wt6:email] (dev no-op send) to=${message.to} subject="${message.subject}"`);
+    return { delivered: true, providerId: null, message };
   }
   try {
     const resend = new Resend(apiKey);

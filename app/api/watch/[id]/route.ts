@@ -3,6 +3,7 @@ import { z } from "zod";
 import { parseSessionToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { recordPreventedFromObligation } from "@/lib/ledger";
+import { initialStatusFromDeadline } from "@/lib/notify-sweep";
 
 export const runtime = "nodejs";
 
@@ -58,6 +59,16 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const data: { status?: string; userNote?: string | null } = {};
   if (parsed.data.status) data.status = parsed.data.status;
   if (parsed.data.note !== undefined) data.userNote = parsed.data.note ?? null;
+
+  // WT-14: reopening a resolved/dismissed item recomputes the lifecycle state
+  // from its deadline instead of leaving it stuck in a terminal state.
+  if (parsed.data.status === "open" && ["resolved", "dismissed"].includes(watchItem.status)) {
+    const obligation = await db.obligation.findUnique({
+      where: { id: watchItem.obligationId },
+      select: { dueDate: true, renewalDate: true },
+    });
+    data.status = initialStatusFromDeadline(obligation?.dueDate ?? obligation?.renewalDate ?? null);
+  }
 
   const updated = await db.watchItem.update({
     where: { id: watchItem.id },

@@ -97,7 +97,7 @@ async function deleteSubmissionTree(submissionId: string): Promise<void> {
     await db.provenanceFact.deleteMany({ where: { documentId: doc.id } });
     await db.event.deleteMany({ where: { obligation: { documentId: doc.id } } });
     await db.watchItem.deleteMany({ where: { obligation: { documentId: doc.id } } });
-    await db.deadline.deleteMany({ where: { obligation: { documentId: doc.id } } });
+    await db.noticeDeadline.deleteMany({ where: { obligation: { documentId: doc.id } } });
     await db.payment.deleteMany({ where: { obligation: { documentId: doc.id } } });
     await db.obligation.deleteMany({ where: { documentId: doc.id } });
     await db.document.delete({ where: { id: doc.id } });
