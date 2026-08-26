@@ -9,6 +9,8 @@ import { ResultCard } from "@/components/result-card";
 import { WatchButton } from "@/components/watch-button";
 import { WatchlistView, type WatchlistItem } from "@/components/watchlist";
 import { LedgerView } from "@/components/ledger";
+import { ToolPage } from "@/components/tool-page";
+import { TOOLS } from "@/lib/tools";
 import type { AnalysisResult } from "@/lib/analysis";
 
 function InputZoneHarness({
@@ -403,5 +405,70 @@ describe("LedgerView (WT-13)", () => {
       />,
     );
     expect(screen.getByTestId("ledger-empty")).toHaveTextContent("No protected money yet");
+  });
+});
+
+describe("WT-15 SEO tool + repeat hook", () => {
+  it("InputZone preseeded with a tool sample submits with the tool slug", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: "t1",
+        result,
+        obligation: { id: "obl-1" },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <VariantProvider variantCookie="A">
+        <InputZone
+          phase="idle"
+          onPhase={() => {}}
+          onResult={() => {}}
+          tool="contract-renewal-analyzer"
+          defaultSample="Your annual contract renews on October 1 at $1,200 per year."
+        />
+      </VariantProvider>,
+    );
+    const input = screen.getByTestId("paste-input") as HTMLTextAreaElement;
+    expect(input.value).toContain("$1,200 per year");
+    await user.click(screen.getByTestId("consent-input"));
+    await user.click(screen.getByTestId("analyze-button"));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body);
+    expect(body.tool).toBe("contract-renewal-analyzer");
+    expect(body.content).toContain("$1,200 per year");
+    vi.unstubAllGlobals();
+  });
+
+  it("ToolPage renders the tool's copy and preseeded sample", () => {
+    render(
+      <VariantProvider variantCookie="A">
+        <ToolPage tool={TOOLS["cancellation-deadline-checker"]} />
+      </VariantProvider>,
+    );
+    expect(screen.getByTestId("tool-badge")).toHaveTextContent("Free deadline checker");
+    expect(screen.getByTestId("tool-headline")).toHaveTextContent("Is it too late to cancel?");
+    const input = screen.getByTestId("paste-input") as HTMLTextAreaElement;
+    expect(input.value).toContain("Ironworks Fitness");
+  });
+
+  it("ToolPage shows the repeat CTA after a result", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "t2", result, obligation: { id: "obl-2" } }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <VariantProvider variantCookie="A">
+        <ToolPage tool={TOOLS["contract-renewal-analyzer"]} />
+      </VariantProvider>,
+    );
+    await user.click(screen.getByTestId("consent-input"));
+    await user.click(screen.getByTestId("analyze-button"));
+    expect(await screen.findByTestId("check-another-button")).toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 });

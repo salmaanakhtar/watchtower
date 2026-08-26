@@ -6,6 +6,8 @@ import { encryptField } from "@/lib/crypto";
 import { ipRateExceeded } from "@/lib/rate-limit";
 import { extractDocumentText } from "@/lib/extraction";
 import { persistCanonical } from "@/lib/ingest";
+import { isValidToolSlug } from "@/lib/tools";
+import { contextFromRequest, recordExperimentEvent, sessionIdFromRequest } from "@/lib/experiments";
 import {
   contentHash,
   decodeUpload,
@@ -25,6 +27,8 @@ const bodySchema = z
     filename: z.string().max(255).optional(),
     base64: z.string().max(MAX_UPLOAD_BYTES * 2 + 8).optional(),
     consent: z.boolean().optional().default(false),
+    // WT-15: the SEO tool slug this analysis came from (null = landing page).
+    tool: z.string().max(60).optional().nullable().default(null),
   })
   .superRefine((val, ctx) => {
     if (val.kind === "file" && (!val.base64 || !val.contentType)) {
@@ -84,6 +88,27 @@ export async function POST(req: Request) {
   const { content, variant, kind, contentType, filename } = parsed.data;
   const consentAt = new Date();
 
+  // WT-15: funnel instrumentation. analysis_start fires on every accepted
+  // analysis; a wt_session_id cookie joins the funnel steps across requests.
+  const sessionId = sessionIdFromRequest(req) ?? randomId();
+  const needSessionCookie = !sessionIdFromRequest(req);
+  const tool = isValidToolSlug(parsed.data.tool ?? "") ? parsed.data.tool : null;
+  const expCtx = contextFromRequest(req, tool, variant);
+  void recordExperimentEvent("analysis_start", expCtx, null, sessionId);
+
+  // Attach the session id to every success response so the client can join
+  // result → account funnels without extra state.
+  const withSession = (body: Record<string, unknown>, status = 200) => {
+    const r = NextResponse.json({ ...body, sessionId }, { status });
+    if (needSessionCookie) {
+      r.headers.append(
+        "Set-Cookie",
+        `wt_session_id=${encodeURIComponent(sessionId)}; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 365}; HttpOnly`,
+      );
+    }
+    return r;
+  };
+
   if (kind === "file") {
     const decoded = decodeUpload(parsed.data.base64!, contentType!, filename ?? "upload.bin");
     if (!decoded) {
@@ -123,7 +148,8 @@ export async function POST(req: Request) {
           extractionMethod: extracted.method,
           contentHashValue: contentHash(extracted.text),
         });
-        return NextResponse.json({
+        void recordExperimentEvent("result", expCtx, null, sessionId);
+        return withSession({
           id: submission.id,
           result,
           queued: false,
@@ -150,7 +176,7 @@ export async function POST(req: Request) {
           status: "queued",
         },
       });
-      return NextResponse.json({
+      return withSession({
         id: submission.id,
         result: null,
         queued: true,
@@ -191,7 +217,8 @@ export async function POST(req: Request) {
       extractionMethod: "raw",
       contentHashValue: contentHash(decoded.decodedText),
     });
-    return NextResponse.json({
+    void recordExperimentEvent("result", expCtx, null, sessionId);
+    return withSession({
       id: submission.id,
       result,
       queued: false,
@@ -223,11 +250,19 @@ export async function POST(req: Request) {
     contentHashValue: contentHash(content),
   });
 
-  return NextResponse.json({
+  void recordExperimentEvent("result", expCtx, null, sessionId);
+  return withSession({
     id: submission.id,
     result,
     queued: false,
     obligation: canonical ? { id: canonical.obligationId ?? canonical.documentId } : null,
   });
+}
+
+function randomId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `sess-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 

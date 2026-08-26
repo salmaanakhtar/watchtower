@@ -3,6 +3,7 @@ import { z } from "zod";
 import { parseSessionToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { initialStatusFromDeadline } from "@/lib/notify-sweep";
+import { contextFromRequest, recordExperimentEvent, sessionIdFromRequest } from "@/lib/experiments";
 
 export const runtime = "nodejs";
 
@@ -61,6 +62,22 @@ export async function POST(req: Request) {
     update: { status: initialStatus },
     create: { userId, obligationId: obligation.id, status: initialStatus },
   });
+
+  // WT-15: the first watch of a session is the account-conversion funnel step.
+  const sessionId = sessionIdFromRequest(req);
+  if (sessionId) {
+    const already = await db.experimentEvent.count({
+      where: { sessionId, event: "account_created" },
+    });
+    if (already === 0) {
+      void recordExperimentEvent(
+        "account_created",
+        contextFromRequest(req, null, null),
+        null,
+        sessionId,
+      );
+    }
+  }
 
   return NextResponse.json({ watchItem, needsAccount: false }, { status: 201 });
 }

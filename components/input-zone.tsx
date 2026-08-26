@@ -23,15 +23,21 @@ export function InputZone({
   onPhase,
   onResult,
   onObligation,
+  tool = null,
+  defaultSample = null,
 }: {
   phase: Phase;
   onPhase: (p: Phase) => void;
   onResult: (r: AnalysisResult | null) => void;
   onObligation?: (o: CanonicalObligation | null) => void;
+  /** WT-15: the SEO tool slug this zone belongs to (null = landing page). */
+  tool?: string | null;
+  /** WT-15: a preseeded example for tool pages (the tool's sample document). */
+  defaultSample?: string | null;
 }) {
   const { variant } = useVariant();
   const [tab, setTab] = useState<"paste" | "file">("paste");
-  const [text, setText] = useState("");
+  const [text, setText] = useState(defaultSample ?? "");
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileMessage, setFileMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +51,7 @@ export function InputZone({
       const res = await fetch("/api/analyses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, consent }),
+        body: JSON.stringify({ ...payload, consent, tool }),
       });
       const json = (await res.json()) as AnalyzeResponse;
       if (!res.ok) throw new Error(json?.error ?? "Analysis failed");
@@ -187,7 +193,7 @@ export function InputZone({
               </button>
               <button
                 type="button"
-                onClick={() => setText(SAMPLE_TEXT)}
+                onClick={() => setText(defaultSample ?? SAMPLE_TEXT)}
                 className="text-sm text-(--wt-ink-500) underline-offset-2 hover:text-(--wt-guardian-600) hover:underline"
                 data-testid="try-example"
               >

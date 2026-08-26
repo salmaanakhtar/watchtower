@@ -18,6 +18,7 @@ datasource db {
 model Submission {
   id          String   @id @default(cuid())
   variant     String   @default("A") // A/B/C/D positioning variant
+  tool        String? // WT-15: SEO tool slug this submission came from (null = landing)
   kind        String   @default("paste") // paste | file | queued
   contentType String? // e.g. text/plain, application/pdf, image/png
   content     String // the pasted text or extracted text preview
@@ -352,5 +353,27 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([action, createdAt])
+  @@index([createdAt])
+}
+
+// ─── WT-15: acquisition experiment funnel events ─────────────────────────────
+// One row per funnel step (tool_view → analysis_start → result →
+// account_created), joined by the anonymous wt_session_id cookie + variant +
+// optional source (wt_experiment / utm). IP is stored for dedupe only and is
+// never exposed to any UI. Append-only — the admin experiment dashboard
+// aggregates these rows.
+model ExperimentEvent {
+  id        String   @id @default(cuid())
+  event     String // tool_view | analysis_start | result | account_created
+  tool      String? // SEO tool slug; null = landing page
+  variant   String? // A/B/C/D positioning variant
+  source    String? // acquisition source (wt_experiment cookie / utm_source)
+  referrer  String? // referrer hostname (analytics only)
+  sessionId String? // wt_session_id — joins funnel steps for one visitor
+  ip        String? // client IP (dedupe only, never surfaced)
+  detail    String? // extra context (e.g. obligation id on result)
+  createdAt DateTime @default(now())
+
+  @@index([tool, event, createdAt])
   @@index([createdAt])
 }

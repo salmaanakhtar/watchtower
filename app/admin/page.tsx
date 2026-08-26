@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { adminAuthorized } from "@/lib/admin";
 import { decryptField } from "@/lib/crypto";
 import { audit } from "@/lib/audit";
+import { experimentFunnelSummary } from "@/lib/experiments";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -53,13 +54,14 @@ export default async function AdminPage() {
 
   if (!authorized) redirect("/?admin=denied");
 
-  const [submissions, waitlist, summary] = await Promise.all([
+  const [submissions, waitlist, summary, funnel] = await Promise.all([
     db.submission.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
       select: {
         id: true,
         variant: true,
+        tool: true,
         kind: true,
         contentType: true,
         filename: true,
@@ -79,6 +81,7 @@ export default async function AdminPage() {
       _count: { _all: true },
       where: { category: { not: null } },
     }),
+    experimentFunnelSummary(),
   ]);
 
   const waitlistView = waitlist.map((w) => ({ ...w, email: decryptField(w.email) ?? "" }));
@@ -131,6 +134,11 @@ export default async function AdminPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium text-(--wt-ink-900)">
                   Variant {s.variant} · {s.kind} · {s.status}
+                  {s.tool ? (
+                    <span className="ml-2 rounded-full border border-(--wt-guardian-300) bg-(--wt-guardian-100) px-2 py-0.5 text-xs font-semibold text-(--wt-guardian-700)">
+                      tool: {s.tool}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="text-xs text-(--wt-ink-500)">
                   {s.createdAt.toLocaleString()}
@@ -198,6 +206,45 @@ export default async function AdminPage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-lg font-semibold text-(--wt-ink-700)">
+          Experiments (WT-15)
+        </h2>
+        <p className="mt-1 text-xs text-(--wt-ink-500)">
+          Funnel: tool_view → analysis_start → result → account_created. Joined
+          by the anonymous session cookie (wt_session_id); per-tool conversion
+          is what the acquisition experiments report.
+        </p>
+        {funnel.length === 0 ? (
+          <p className="mt-3 text-sm text-(--wt-ink-500)">No experiment events yet.</p>
+        ) : (
+          <table className="mt-3 w-full border-collapse text-left text-sm" data-testid="experiment-table">
+            <thead>
+              <tr className="border-b border-(--wt-ink-300) text-xs uppercase tracking-wide text-(--wt-ink-500)">
+                <th className="py-2 pr-4 font-semibold">Source</th>
+                <th className="py-2 pr-4 font-semibold">Views</th>
+                <th className="py-2 pr-4 font-semibold">Starts</th>
+                <th className="py-2 pr-4 font-semibold">Results</th>
+                <th className="py-2 font-semibold">Accounts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {funnel.map((r) => (
+                <tr key={r.tool ?? "landing"} className="border-b border-(--wt-ink-300)">
+                  <td className="py-2 pr-4 font-medium text-(--wt-ink-900)">
+                    {r.tool ?? "Landing"}
+                  </td>
+                  <td className="py-2 pr-4 text-(--wt-ink-700)">{r.views}</td>
+                  <td className="py-2 pr-4 text-(--wt-ink-700)">{r.starts}</td>
+                  <td className="py-2 pr-4 text-(--wt-ink-700)">{r.results}</td>
+                  <td className="py-2 text-(--wt-ink-700)">{r.accounts}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
 
       <section className="mt-10">

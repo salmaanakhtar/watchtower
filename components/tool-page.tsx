@@ -1,20 +1,28 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { InputZone, type Phase } from "./input-zone";
 import { ResultCard, type CanonicalObligation } from "./result-card";
-import { WaitlistForm } from "./waitlist-form";
 import { useVariant } from "./variant-provider";
 import { BrandMark } from "./ui/brand-mark";
 import { Button } from "./ui/button";
+import type { ToolDefinition } from "@/lib/tools";
 import type { AnalysisResult } from "@/lib/analysis";
 
-export function LandingPage() {
-  const { variant, copy } = useVariant();
+/**
+ * WT-15: a vertical SEO tool page — a thin wrapper over the analyzer pipeline.
+ * Renders the tool's positioning copy + the shared input zone preseeded with
+ * the tool's example document, then the result card + repeat CTA.
+ */
+export function ToolPage({ tool }: { tool: ToolDefinition }) {
+  const { variant } = useVariant();
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [obligation, setObligation] = useState<CanonicalObligation | null>(null);
   const [resetKey, setResetKey] = useState(0);
+
+  void variant;
 
   function reset() {
     setPhase("idle");
@@ -30,32 +38,33 @@ export function LandingPage() {
           <BrandMark />
           <span className="text-lg font-semibold text-(--wt-ink-900)">Watchtower</span>
         </div>
-        <span
-          className="rounded-full border border-(--wt-ink-300) px-3 py-1 text-xs font-medium text-(--wt-ink-500)"
-          data-testid="variant-badge"
+        <Link
+          href="/"
+          className="text-sm font-medium text-(--wt-guardian-600) hover:underline"
+          data-testid="tool-home-link"
         >
-          Variant {variant}
-        </span>
+          Full analyzer
+        </Link>
       </header>
 
-      <section className="flex flex-col items-center px-6 pt-10 text-center sm:pt-16">
+      <section className="flex flex-col items-center px-6 pt-10 text-center sm:pt-14">
         <span
           className="rounded-full bg-(--wt-guardian-100) px-4 py-1.5 text-xs font-semibold text-(--wt-guardian-700)"
-          data-testid="badge"
+          data-testid="tool-badge"
         >
-          {copy.badge}
+          {tool.badge}
         </span>
         <h1
           className="mt-6 max-w-2xl text-4xl font-bold leading-tight tracking-tight text-(--wt-ink-900) sm:text-5xl"
-          data-testid="headline"
+          data-testid="tool-headline"
         >
-          {copy.headline}
+          {tool.headline}
         </h1>
         <p
           className="mt-4 max-w-xl text-base leading-relaxed text-(--wt-ink-500) sm:text-lg"
-          data-testid="subheadline"
+          data-testid="tool-subheadline"
         >
-          {copy.subheadline}
+          {tool.subheadline}
         </p>
 
         <div className="mt-10 w-full">
@@ -65,24 +74,25 @@ export function LandingPage() {
             onPhase={setPhase}
             onResult={setResult}
             onObligation={setObligation}
+            tool={tool.slug}
+            defaultSample={tool.sampleText}
           />
         </div>
 
         {phase === "done" && result && (
           <div className="mt-8 w-full space-y-6 pb-8">
             <ResultCard result={result} obligation={obligation} />
-            {result.kind === "none" && <WaitlistForm />}
-            {/* WT-15 §9.5: repeat hook — "Check another document free" is the
-                second-chance account-conversion + repeat-usage data point. */}
-            <Button type="button" variant="secondary" onClick={reset} data-testid="check-another-button">
-              Check another document free
-            </Button>
+            <div className="mx-auto max-w-2xl">
+              <Button type="button" variant="secondary" onClick={reset} data-testid="check-another-button">
+                Check another document free
+              </Button>
+            </div>
           </div>
         )}
       </section>
 
       <footer className="mt-auto px-6 py-8 text-center text-xs text-(--wt-ink-500)">
-        Watchtower — early access. Your documents are never stored permanently.
+        Watchtower — {tool.name} is free. Your documents are never stored permanently.
       </footer>
     </main>
   );

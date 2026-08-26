@@ -47,11 +47,13 @@ Add persistence:
 - Status / deadlines / exposure ✅ (WT-5)
 - Notes/history ✅ (WT-5)
 - **NEW:** email forwarding ingestion — inbound infra ✅ (WT-11: MX→Resend→webhook, anti-abuse, reputation), per-account addresses ✅ (WT-12: provision/rotate/disable + settings UI + auto-ingestion)
-- **NEW:** exposure/money-protected ledger ⏳ (WT-13)
-- **NEW:** deadline reminder sweep (T-7 / T-1) ⏳ (WT-14)
-- **NEW:** acquisition experiments ⏳ (WT-15, runs in parallel)
+- **NEW:** exposure/money-protected ledger ✅ (WT-13: strict categories + traceable dollars + `/ledger` dashboard + auto-record on resolve)
+- **NEW:** deadline reminder sweep (T-7 / T-1) ✅ (WT-14: lifecycle `open → upcoming → due`, per-cadence dedupe, renewal reminders)
+- **NEW:** acquisition experiments ✅ (WT-15: 2 SEO tools at `/tools/*` — contract renewal analyzer + cancellation deadline checker — repeat "Check another document free" hook, `ExperimentEvent` funnel instrumentation + admin table; content/Reddit ops pending)
 
 **Status (2026-08-25):** WT-11 shipped (commit `48de397`) + verified live 2026-08-25 — public webhook endpoints answer correctly (`e2e-inbound.sh` all PASS), messages land as `InboundMessage` rows (quarantined `unknown_address` until an address exists). **WT-12 shipped** (commit `6473984`): per-account forwarding addresses (`u-<token>@in.watchtower.salmaan.dev`) with provision/rotate/disable, settings UI at `/forwarding`, linked from the watchlist; a forwarded message now auto-ingests through the WT-3 pipeline into a watch item (provenance `source=forward`, anti-abuse gates + dedupe apply). Next up: WT-13 (exposure/money-protected ledger).
+
+**Status (2026-08-26):** WT-13, WT-14 shipped (commits `eb5ff67`, `9d6c64c`). **WT-15 shipped**: two free vertical SEO tools (`/tools/contract-renewal-analyzer`, `/tools/cancellation-deadline-checker`) as thin wrappers over the analyzer with preseeded examples, the "Check another document free" repeat hook after every result, and `ExperimentEvent` funnel instrumentation (`tool_view → analysis_start → result → account_created`, joined by the anonymous `wt_session_id` cookie, `wt_experiment` source cookie for content CTAs) surfaced in an admin Experiments table. Phase 2 code complete — remaining acquisition work is operational (short-form content + Reddit posts), not engineering.
 
 ## Phase 3 — Email forwarding
 Give each account a unique forwarding address.
