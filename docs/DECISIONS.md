@@ -196,3 +196,12 @@
 **Why:** The acquisition loop (traffic → analysis → account, PHASE0_1_PLAN §9, MARKETING_DISTRIBUTION "Channel 2") needs measurable funnels before spending any distribution effort; each tool is an SEO door that feeds the same watchlist/account system. Synthetic preseeded examples keep public content within the "synthetic documents only" constraint (§9) while guaranteeing the tool always demonstrates its promise. The repeat hook gives a second account-conversion chance and repeat-usage data (§9.5). Event rows (not just submission counts) keep funnels joinable across the anonymous → account boundary without adding cookies beyond one id; IP is stored for dedupe only and never surfaced.
 
 **Revisit when:** An experiment reaches traffic (declare per-tool conversion vs landing); more vertical tools are requested (add slugs to `lib/tools.ts` only); or funnel analytics move to a real analytics provider (then export/redact `ExperimentEvent`).
+
+---
+
+## 2026-08-27 — WT-10/WT-15 closed: Phase 2 code complete, move to measurement + acquisition ops
+**Decision:** Close WT-10 (Phase 2 umbrella — email forwarding + recurring product) and WT-15 (acquisition experiments engineering) as Done. All four Phase 2 scope items shipped (WT-11 inbound infra, WT-12 forwarding addresses, WT-13 ledger, WT-14 reminders) plus the WT-15 tooling (2 SEO tools, repeat hook, funnel instrumentation, commit `1947af6` deployed, health 200). The two time-based exit criteria — ≥30% 30-day return (retention) and forwarding opt-in rate — are measurement outcomes that need live accounts and calendar time, not code, so they are tracked operationally rather than blocking the issues.
+
+**Why:** Phase 2's build phase is genuinely complete; keeping the umbrella open would create stale-state Linear hygiene debt (AGENTS.md: issues move to Done as work progresses). Instrumentation for every acquisition funnel is already live and accumulating data on its own.
+
+**Revisit when:** Accounts > ~50 or after the first content push — then read the retention + opt-in numbers against the exit criteria and decide whether Phase 2 needs follow-up work before Phase 5 (Gmail/Outlook) or Phase 6 (Obligation Life Graph) planning starts.
